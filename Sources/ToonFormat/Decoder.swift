@@ -28,6 +28,21 @@ public final class TOONDecoder {
     /// ```
     public var expandPaths: PathExpansion = .automatic
 
+    /// The number of spaces of one indentation level.
+    ///
+    /// TOON specification 13.2 defines this option, with a default of 2.
+    ///
+    /// Earlier releases read the indentation size from the first indented line
+    /// of the document. That guess is not part of the specification, and it
+    /// misreads a document whose first nested value is deeper than one level.
+    /// Set this property to decode a document that uses a different size:
+    ///
+    /// ```swift
+    /// let decoder = TOONDecoder()
+    /// decoder.indentSize = 4
+    /// ```
+    public var indentSize: Int = 2
+
     /// Limits for decoding to prevent resource exhaustion.
     ///
     /// Use this to protect against malicious or malformed input when parsing untrusted data.
@@ -153,7 +168,12 @@ public final class TOONDecoder {
             throw TOONDecodingError.invalidFormat("Data is not valid UTF-8")
         }
 
-        let parser = Parser(text: text, expandPaths: expandPaths, limits: limits)
+        let parser = Parser(
+            text: text,
+            indentSize: indentSize,
+            expandPaths: expandPaths,
+            limits: limits
+        )
         let value = try parser.parse()
 
         let decoder = Decoder(value: value, codingPath: [], userInfo: [:])
@@ -215,19 +235,33 @@ public enum TOONDecodingError: Error, Equatable {
 
 private final class Parser {
     private let lines: [String]
-    private var indentSize: Int = 2
+    private let indentSize: Int
+    private let sourceLineNumbers: [Int]
     private let expandPaths: TOONDecoder.PathExpansion
     private let limits: TOONDecoder.DecodingLimits
     private var currentLine: Int = 0
-    private var indentDetected: Bool = false
 
-    init(text: String, expandPaths: TOONDecoder.PathExpansion, limits: TOONDecoder.DecodingLimits) {
-        // Split by LF, handling potential CR+LF
-        lines = text.replacingOccurrences(of: "\r\n", with: "\n")
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
+    init(
+        text: String,
+        indentSize: Int,
+        expandPaths: TOONDecoder.PathExpansion,
+        limits: TOONDecoder.DecodingLimits
+    ) {
+        let document = LineScanner.scan(text)
+        lines = document.lines
+        sourceLineNumbers = document.sourceLineNumbers
+        self.indentSize = indentSize
         self.expandPaths = expandPaths
         self.limits = limits
+    }
+
+    /// Maps an index into ``lines`` to the line number of the original
+    /// document. The pre-pass drops the comment lines, so the two differ.
+    private func sourceLine(_ index: Int) -> Int {
+        if index < sourceLineNumbers.count {
+            return sourceLineNumbers[index]
+        }
+        return (sourceLineNumbers.last ?? 0) + 1
     }
 
     func parse() throws -> Value {
@@ -310,13 +344,8 @@ private final class Parser {
             index = line.index(after: index)
         }
 
-        // Auto-detect indent size from first indented line
-        if spaces > 0 && !indentDetected {
-            indentSize = spaces
-            indentDetected = true
-        }
-
-        // Calculate depth based on detected or default indent size
+        // The depth uses the floor of the division, which is the leniency that
+        // TOON specification 12 allows for a non-multiple indentation.
         let depth = indentSize > 0 ? spaces / indentSize : 0
         return (depth, line[index...])
     }
@@ -367,7 +396,7 @@ private final class Parser {
             // If depth doesn't match expected, error
             if lineDepth != depth {
                 throw TOONDecodingError.invalidIndentation(
-                    line: currentLine + 1,
+                    line: sourceLine(currentLine),
                     message: "Expected indentation depth \(depth), got \(lineDepth)"
                 )
             }
@@ -508,7 +537,7 @@ private final class Parser {
 
         if lineDepth != depth {
             throw TOONDecodingError.invalidIndentation(
-                line: currentLine + 1,
+                line: sourceLine(currentLine),
                 message: "Expected indentation depth \(depth), got \(lineDepth)"
             )
         }
@@ -721,7 +750,7 @@ private final class Parser {
                     throw TOONDecodingError.countMismatch(
                         expected: header.count,
                         actual: values.count,
-                        line: currentLine
+                        line: sourceLine(currentLine)
                     )
                 }
                 return .array(values)
@@ -749,7 +778,11 @@ private final class Parser {
         }
 
         if items.count != header.count {
-            throw TOONDecodingError.countMismatch(expected: header.count, actual: items.count, line: currentLine)
+            throw TOONDecodingError.countMismatch(
+                expected: header.count,
+                actual: items.count,
+                line: sourceLine(currentLine)
+            )
         }
 
         return .array(items)
@@ -768,14 +801,14 @@ private final class Parser {
             }
 
             if line.isEmpty {
-                throw TOONDecodingError.unexpectedBlankLine(line: currentLine)
+                throw TOONDecodingError.unexpectedBlankLine(line: sourceLine(currentLine))
             }
 
             let (lineDepth, content) = trimIndentation(line)
 
             if lineDepth != expectedDepth {
                 throw TOONDecodingError.invalidIndentation(
-                    line: currentLine,
+                    line: sourceLine(currentLine),
                     message: "Expected indentation depth \(expectedDepth), got \(lineDepth)"
                 )
             }
@@ -786,7 +819,7 @@ private final class Parser {
                 throw TOONDecodingError.fieldCountMismatch(
                     expected: fields.count,
                     actual: values.count,
-                    line: currentLine
+                    line: sourceLine(currentLine)
                 )
             }
 
@@ -813,14 +846,14 @@ private final class Parser {
             }
 
             if line.isEmpty {
-                throw TOONDecodingError.unexpectedBlankLine(line: currentLine + 1)
+                throw TOONDecodingError.unexpectedBlankLine(line: sourceLine(currentLine))
             }
 
             let (lineDepth, content) = trimIndentation(line)
 
             if lineDepth != expectedDepth {
                 throw TOONDecodingError.invalidIndentation(
-                    line: currentLine + 1,
+                    line: sourceLine(currentLine),
                     message: "Expected indentation depth \(expectedDepth), got \(lineDepth)"
                 )
             }
@@ -989,7 +1022,9 @@ private final class Parser {
             return .int(intValue)
         }
 
-        if let doubleValue = Double(trimmed), trimmed.contains(".") || trimmed.lowercased().contains("e") {
+        if let doubleValue = Double(trimmed), trimmed.contains(".")
+            || trimmed.lowercased().contains("e")
+        {
             return .double(doubleValue)
         }
 
@@ -1077,7 +1112,7 @@ private final class Parser {
 
         if let existing = existing {
             guard case let .object(vals, order) = existing else {
-                throw TOONDecodingError.pathCollision(path: segment, line: currentLine)
+                throw TOONDecodingError.pathCollision(path: segment, line: sourceLine(currentLine))
             }
             objectValues = vals
             objectKeyOrder = order

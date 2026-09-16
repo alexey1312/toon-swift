@@ -1,0 +1,89 @@
+import Foundation
+
+/// The lines of a document after the lexical pre-pass.
+///
+/// The pre-pass runs before every other step of decoding, as TOON
+/// specification § 5.1 and § 12 require.
+struct ScannedDocument {
+    /// The lines to parse.
+    ///
+    /// The byte-order mark, the carriage returns, the trailing spaces and the
+    /// comment lines are removed. Blank lines stay, because § 14.2 counts them.
+    let lines: [String]
+
+    /// The 1-based number of each line in the original document.
+    ///
+    /// The pre-pass drops the comment lines, so an index into ``lines`` is not
+    /// the number that the reader of the document sees. An error message uses
+    /// this table to report the original number.
+    let sourceLineNumbers: [Int]
+}
+
+/// Runs the lexical pre-pass of TOON specification § 5.1 and § 12.
+enum LineScanner {
+    /// Splits the text into lines and removes what is not content.
+    ///
+    /// The steps run in the order that § 12 prescribes:
+    ///
+    /// 1. Remove a single U+FEFF at the very start of the document. A U+FEFF
+    ///    anywhere else is content.
+    /// 2. Exclude a carriage return at the end of a line, which accepts CRLF
+    ///    input. A carriage return anywhere else in a line is content.
+    /// 3. Strip the trailing spaces (U+0020) of a line. A line whose content
+    ///    is `-` followed only by spaces is therefore the bare marker of an
+    ///    empty-object list item, not a list item that carries an empty token.
+    /// 4. Remove the comment lines (§ 5.1). A comment line is a line whose
+    ///    first character after zero or more leading spaces is `#`. Only
+    ///    spaces may precede the `#`, so a line indented with a tab is
+    ///    content. Removal never creates or terminates a scope: a comment
+    ///    between two tabular rows does not end them, and a comment is never
+    ///    counted as a row, an entry, a list item or a blank line.
+    static func scan(_ text: String) -> ScannedDocument {
+        // The scan runs over Unicode scalars, not over Characters. Swift treats
+        // "\r\n" as one grapheme cluster, so a split of a String on "\n" does
+        // not divide a CRLF pair.
+        let scalars = Array(text.unicodeScalars)
+        let start = scalars.first == "\u{FEFF}" ? 1 : 0
+
+        var lines: [String] = []
+        var sourceLineNumbers: [Int] = []
+        var lineStart = start
+        var lineNumber = 1
+        var index = start
+
+        while index <= scalars.count {
+            guard index == scalars.count || scalars[index] == "\n" else {
+                index += 1
+                continue
+            }
+
+            var end = index
+            if end > lineStart, scalars[end - 1] == "\r" {
+                end -= 1
+            }
+            while end > lineStart, scalars[end - 1] == " " {
+                end -= 1
+            }
+
+            let content = scalars[lineStart ..< end]
+            if !isCommentLine(content) {
+                lines.append(String(String.UnicodeScalarView(content)))
+                sourceLineNumbers.append(lineNumber)
+            }
+
+            lineNumber += 1
+            lineStart = index + 1
+            index += 1
+        }
+
+        return ScannedDocument(lines: lines, sourceLineNumbers: sourceLineNumbers)
+    }
+
+    private static func isCommentLine(_ line: ArraySlice<Unicode.Scalar>) -> Bool {
+        var index = line.startIndex
+        while index < line.endIndex, line[index] == " " {
+            index += 1
+        }
+        return index < line.endIndex && line[index] == "#"
+    }
+}

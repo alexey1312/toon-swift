@@ -1184,9 +1184,13 @@ struct DecoderTests {
         #expect(result.a.b.c.value == "deep")
     }
 
-    // MARK: - Auto-detected Indentation
+    // MARK: - Indent Size Option
 
-    @Test func autoDetectIndentation4Spaces() async throws {
+    // TOON specification 13.2 defines indentSize as a decoder option with a
+    // default of 2. Earlier releases guessed the size from the first indented
+    // line of the document, which is not a concept of the specification.
+
+    @Test func decodesFourSpaceIndentWithMatchingIndentSize() async throws {
         struct NestedObject: Codable, Equatable {
             struct Inner: Codable, Equatable {
                 let value: String
@@ -1199,12 +1203,13 @@ struct DecoderTests {
             outer:
                 value: test
             """
-        let data = toon.data(using: .utf8)!
-        let result = try decoder.decode(NestedObject.self, from: data)
+        let decoder = TOONDecoder()
+        decoder.indentSize = 4
+        let result = try decoder.decode(NestedObject.self, from: Data(toon.utf8))
         #expect(result.outer.value == "test")
     }
 
-    @Test func autoDetectIndentation3Spaces() async throws {
+    @Test func decodesSingleSpaceIndentWithMatchingIndentSize() async throws {
         struct NestedObject: Codable, Equatable {
             struct Inner: Codable, Equatable {
                 let value: String
@@ -1213,27 +1218,28 @@ struct DecoderTests {
             let outer: Inner
         }
 
+        let decoder = TOONDecoder()
+        decoder.indentSize = 1
+        let result = try decoder.decode(NestedObject.self, from: Data("outer:\n value: test".utf8))
+        #expect(result.outer.value == "test")
+    }
+
+    @Test func floorsIndentationThatIsNotAMultipleOfIndentSize() async throws {
+        struct NestedObject: Codable, Equatable {
+            struct Inner: Codable, Equatable {
+                let value: String
+            }
+
+            let outer: Inner
+        }
+
+        // Specification 12 computes the depth with the floor of the division,
+        // so three spaces at an indent size of two is depth one.
         let toon = """
             outer:
                value: test
             """
-        let data = toon.data(using: .utf8)!
-        let result = try decoder.decode(NestedObject.self, from: data)
-        #expect(result.outer.value == "test")
-    }
-
-    @Test func singleSpaceIndentation() async throws {
-        struct NestedObject: Codable, Equatable {
-            struct Inner: Codable, Equatable {
-                let value: String
-            }
-            let outer: Inner
-        }
-
-        // Test 1-space indentation detection
-        let toon = "outer:\n value: test"
-        let data = toon.data(using: .utf8)!
-        let result = try decoder.decode(NestedObject.self, from: data)
+        let result = try decoder.decode(NestedObject.self, from: Data(toon.utf8))
         #expect(result.outer.value == "test")
     }
 
