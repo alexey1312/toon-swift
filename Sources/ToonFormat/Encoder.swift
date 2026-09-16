@@ -483,6 +483,29 @@ public final class TOONEncoder {
         case .object(let nestedValues, let nestedKeyOrder):
             if nestedKeyOrder.isEmpty {
                 write(depth: depth, content: "- \(encodedKey):", to: &output)
+            } else if let header = detectKeyedTabularHeader(
+                nestedValues,
+                keyOrder: nestedKeyOrder
+            ) {
+                // Specification 10 lets a keyed header sit on the hyphen line.
+                // Its entry rows go two levels below that line, which puts the
+                // sibling fields one level above them.
+                var headerStr = encodeKey(firstKey)
+                let delimiterSuffix = delimiter.rawValue != "," ? delimiter.rawValue : ""
+                headerStr += "[\(nestedKeyOrder.count):\(delimiterSuffix)]"
+                headerStr += "{\(formatFieldList(header, delimiter: delimiter.rawValue))}:"
+                write(depth: depth, content: "- \(headerStr)", to: &output)
+
+                for entryKey in nestedKeyOrder {
+                    guard let entry = nestedValues[entryKey] else { continue }
+                    let cells = collectRowLeaves(entry, fields: header)
+                    let row = joinEncodedValues(cells, delimiter: delimiter.rawValue)
+                    write(
+                        depth: depth + 2,
+                        content: "\(encodeKey(entryKey)): \(row)",
+                        to: &output
+                    )
+                }
             } else {
                 write(depth: depth, content: "- \(encodedKey):", to: &output)
                 encodeObject(nestedValues, keyOrder: nestedKeyOrder, output: &output, depth: depth + 2)
@@ -599,6 +622,42 @@ public final class TOONEncoder {
         writeTabularRows(rows: rows, header: header, output: &output, depth: depth + 1)
     }
 
+    /// Writes an inner array that sits on a hyphen line.
+    ///
+    /// Specification 6 allows a keyless header to carry a field list only at
+    /// the document root, so a tabular-eligible inner array takes the list
+    /// form here rather than the tabular form.
+    private func encodeInnerArrayAsListItem(_ array: [Value], output: inout [String], depth: Int) {
+        if array.allSatisfy({ $0.isPrimitive }) {
+            let inline = formatInlineArray(values: array, key: nil, inListItem: true)
+            write(depth: depth, content: "- \(inline)", to: &output)
+            return
+        }
+
+        write(depth: depth, content: "- [\(array.count)]:", to: &output)
+        for item in array {
+            switch item {
+            case .null, .bool, .int, .double, .string, .date, .url, .data:
+                if let encoded = encodePrimitive(
+                    item,
+                    delimiter: delimiter.rawValue,
+                    inObject: false
+                ) {
+                    write(depth: depth + 1, content: "- \(encoded)", to: &output)
+                }
+            case .array(let inner):
+                encodeInnerArrayAsListItem(inner, output: &output, depth: depth + 1)
+            case .object(let values, let keyOrder):
+                encodeObjectAsListItem(
+                    values: values,
+                    keyOrder: keyOrder,
+                    output: &output,
+                    depth: depth + 1
+                )
+            }
+        }
+    }
+
     private func encodeMixedArrayAsListItems(
         key: String?,
         items: [Value],
@@ -620,14 +679,7 @@ public final class TOONEncoder {
                 }
 
             case .array(let array):
-                if array.allSatisfy({ $0.isPrimitive }) {
-                    let inline = formatInlineArray(values: array, key: nil, inListItem: true)
-                    write(
-                        depth: depth + 1,
-                        content: "- \(inline)",
-                        to: &output
-                    )
-                }
+                encodeInnerArrayAsListItem(array, output: &output, depth: depth + 1)
 
             case .object(let values, let keyOrder):
                 encodeObjectAsListItem(

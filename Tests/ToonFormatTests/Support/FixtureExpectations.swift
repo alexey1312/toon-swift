@@ -12,17 +12,7 @@
 /// Regenerate this file with `Scripts/record-fixture-gaps.sh`.
 enum FixtureExpectations {
     static let knownGaps: [String: String] = [
-        "decode/arrays-nested.json#2":
-            "§10 parses list arrays with deeply nested objects",
-        "decode/blank-lines.json#15":
-            "§14.2 throws on blank line between list items after nested tabular rows",
         "decode/comments.json#13":
-            "§5.1 decodes tab-indented hash row as data in non-strict mode",
-        "encode/arrays-nested.json#14":
-            "§9.3 uses list form for a tabular-eligible array in list-item position",
-        "encode/arrays-nested.json#7":
-            "§9.4 encodes root-level array mixing primitive, object, and array of objects in list form",
-        "encode/objects-keyed.json#11":
-            "§10 emits a keyed header on the hyphen line when it is the first field of a list item",
+            "§5.1 decodes tab-indented hash row as data in non-strict mode"
     ]
 }

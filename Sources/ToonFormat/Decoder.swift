@@ -428,21 +428,39 @@ private final class Parser {
     /// interior when the scope has already produced an element and the next
     /// line still belongs to the scope.
     private func skipBlankLines(insideScopeAtDepth depth: Int, hasElement: Bool) throws {
-        var firstBlank: Int?
-        while currentLine < lines.count, lines[currentLine].isEmpty {
-            if firstBlank == nil {
-                firstBlank = currentLine
+        guard currentLine < lines.count, lines[currentLine].isEmpty else { return }
+
+        guard let nextDepth = depthOfNextContentLine() else {
+            // Only blank lines remain, so nothing encloses them.
+            while currentLine < lines.count, lines[currentLine].isEmpty {
+                currentLine += 1
             }
+            return
+        }
+
+        // The next line is shallower, so the blank lines sit after this scope
+        // and belong to an enclosing one. Leave them for it to judge.
+        if nextDepth < depth { return }
+
+        let firstBlank = currentLine
+        while currentLine < lines.count, lines[currentLine].isEmpty {
             currentLine += 1
         }
 
-        guard strict, hasElement, let blank = firstBlank, currentLine < lines.count
-        else { return }
-
-        let (nextDepth, _) = trimIndentation(lines[currentLine])
-        if nextDepth >= depth {
-            throw TOONDecodingError.unexpectedBlankLine(line: sourceLine(blank))
+        if strict, hasElement {
+            throw TOONDecodingError.unexpectedBlankLine(line: sourceLine(firstBlank))
         }
+    }
+
+    /// The depth of the next line that is not blank, without consuming
+    /// anything. Returns `nil` at the end of the document.
+    private func depthOfNextContentLine() -> Int? {
+        var index = currentLine
+        while index < lines.count, lines[index].isEmpty {
+            index += 1
+        }
+        guard index < lines.count else { return nil }
+        return trimIndentation(lines[index]).depth
     }
 
     private func skipEmptyLines() {
@@ -1469,7 +1487,9 @@ private final class Parser {
                         atDepth: depth + 1
                     )
                 } else {
-                    let nestedValue = try parseNestedValue(atDepth: depth + 1)
+                    // The first field sits one level below the hyphen line, so
+                    // its own content sits two levels below it (section 10).
+                    let nestedValue = try parseNestedValue(atDepth: depth + 2)
                     objectValues[key] = nestedValue
                 }
             } else {
@@ -1494,6 +1514,10 @@ private final class Parser {
             // is interior and section 14.2 rejects it.
             while let nextLine = peekLine() {
                 if nextLine.isEmpty {
+                    // Leave the blank lines for the enclosing scope when they
+                    // end this item, so that the list itself judges them.
+                    guard let nextDepth = depthOfNextContentLine(), nextDepth >= depth + 1
+                    else { break }
                     try skipBlankLines(insideScopeAtDepth: depth + 1, hasElement: true)
                     continue
                 }
