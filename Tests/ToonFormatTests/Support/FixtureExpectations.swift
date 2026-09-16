@@ -36,16 +36,8 @@ enum FixtureExpectations {
             "§6 falls through to a key-value line on a header delimiter mismatch",
         "decode/objects-keyed.json#18":
             "§9.5 skips an entry-depth line without a colon in non-strict mode",
-        "decode/root-form.json#5":
-            "§5 throws on trailing content after a root array",
-        "decode/root-form.json#6":
-            "§5 throws on trailing content after a keyed tabular root",
         "decode/validation-errors.json#49":
             "§6 throws on keyless fields-bearing header as list item",
-        "decode/validation-errors.json#54":
-            "§7.4 throws on characters after a closing quote in non-strict mode",
-        "decode/validation-errors.json#7":
-            "§14.2 throws on unterminated string",
         "decode/whitespace.json#14":
             "§12 treats a hyphen followed by trailing spaces as the bare marker",
         "encode/arrays-nested.json#14":
@@ -54,8 +46,6 @@ enum FixtureExpectations {
             "§9.4 encodes root-level array mixing primitive, object, and array of objects in list form",
         "encode/objects-keyed.json#11":
             "§10 emits a keyed header on the hyphen line when it is the first field of a list item",
-        "encode/objects.json#27":
-            "§7.1 escapes U+001F control character in key via \\uXXXX",
         "encode/primitives.json#37":
             "§2 encodes repeating decimal with full precision",
     ]

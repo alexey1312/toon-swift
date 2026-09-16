@@ -1661,7 +1661,7 @@ private extension String {
             case "\t": result.append(contentsOf: "\\t".unicodeScalars)
             default:
                 if scalar.value <= 0x1F {
-                    let hex = String(format: "%04X", scalar.value)
+                    let hex = String(format: "%04x", scalar.value)
                     result.append(contentsOf: "\\u\(hex)".unicodeScalars)
                 } else {
                     result.append(scalar)

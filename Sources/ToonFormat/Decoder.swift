@@ -298,6 +298,21 @@ private final class Parser {
         return (sourceLineNumbers.last ?? 0) + 1
     }
 
+    /// Rejects a line that follows a root scope.
+    ///
+    /// Specification 5 gives a document one root value. A line left over after
+    /// the root array or the root keyed scope is trailing content.
+    private func rejectTrailingContentAfterRoot() throws {
+        while currentLine < lines.count {
+            if !lines[currentLine].isEmpty {
+                throw TOONDecodingError.invalidFormat(
+                    "Trailing content after the root value, at line \(sourceLine(currentLine))"
+                )
+            }
+            currentLine += 1
+        }
+    }
+
     func parse() throws -> Value {
         // Filter out empty lines for root detection, but keep track of original positions
         let nonEmptyLines = lines.enumerated().filter { !$0.element.isEmpty }
@@ -321,7 +336,9 @@ private final class Parser {
         // An array header without key starts with "[" immediately
         if firstContent.hasPrefix("["), let _ = try? parseArrayHeader(String(firstContent)) {
             currentLine = nonEmptyLines[0].offset
-            return try parseArrayAtCurrentLine(depth: 0, key: nil)
+            let root = try parseArrayAtCurrentLine(depth: 0, key: nil)
+            try rejectTrailingContentAfterRoot()
+            return root
         }
 
         // Single primitive: exactly one non-empty line that's not an object key-value pair
@@ -1499,9 +1516,21 @@ private final class Parser {
             return .string("")
         }
 
-        // Quoted string
-        if trimmed.hasPrefix("\"") && trimmed.hasSuffix("\"") {
-            let inner = String(trimmed.dropFirst().dropLast())
+        // Quoted string. Specification 7.4 states that a token which begins
+        // with a quote must end at its closing quote, in both modes, so a
+        // missing quote and any character after the closing one are errors.
+        if trimmed.hasPrefix("\"") {
+            guard let closing = findClosingQuote(in: trimmed[...]) else {
+                throw TOONDecodingError.invalidFormat(
+                    "Unterminated quoted value at line \(sourceLine(currentLine))"
+                )
+            }
+            guard trimmed.index(after: closing) == trimmed.endIndex else {
+                throw TOONDecodingError.invalidFormat(
+                    "Characters after the closing quote at line \(sourceLine(currentLine))"
+                )
+            }
+            let inner = String(trimmed[trimmed.index(after: trimmed.startIndex) ..< closing])
             return try .string(unescapeString(inner))
         }
 
