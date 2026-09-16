@@ -26,22 +26,8 @@ enum FixtureExpectations {
             "§9.1 parses strings with delimiters in arrays",
         "decode/arrays-tabular.json#17":
             "§14.1 keeps every row when the count mismatches in non-strict mode",
-        "decode/blank-lines.json#0":
-            "§14.2 throws on blank line inside list array",
-        "decode/blank-lines.json#1":
-            "§14.2 throws on blank line inside tabular array",
         "decode/blank-lines.json#15":
             "§14.2 throws on blank line between list items after nested tabular rows",
-        "decode/blank-lines.json#16":
-            "§14.2 throws on blank line between a list item's fields",
-        "decode/blank-lines.json#17":
-            "§14.2 throws on blank line inside the last list item's fields",
-        "decode/blank-lines.json#2":
-            "§14.2 throws on blank line between keyed entry rows",
-        "decode/blank-lines.json#3":
-            "§14.2 throws on multiple blank lines inside array",
-        "decode/blank-lines.json#4":
-            "§14.2 throws on blank line with spaces inside array",
         "decode/comments.json#11":
             "§5.1 drops hash-leading row silently in non-strict mode",
         "decode/comments.json#13":

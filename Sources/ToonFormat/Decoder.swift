@@ -379,6 +379,32 @@ private final class Parser {
         return line
     }
 
+    /// Skips the blank lines, and rejects one that sits inside a scope.
+    ///
+    /// Specification 14.2 forbids a blank line inside the span of a header.
+    /// The span runs from the first row, entry or item of the scope through
+    /// the last line of its content, so a blank line before the first one and
+    /// a blank line after the last one are both ignorable. A blank line is
+    /// interior when the scope has already produced an element and the next
+    /// line still belongs to the scope.
+    private func skipBlankLines(insideScopeAtDepth depth: Int, hasElement: Bool) throws {
+        var firstBlank: Int?
+        while currentLine < lines.count, lines[currentLine].isEmpty {
+            if firstBlank == nil {
+                firstBlank = currentLine
+            }
+            currentLine += 1
+        }
+
+        guard strict, hasElement, let blank = firstBlank, currentLine < lines.count
+        else { return }
+
+        let (nextDepth, _) = trimIndentation(lines[currentLine])
+        if nextDepth >= depth {
+            throw TOONDecodingError.unexpectedBlankLine(line: sourceLine(blank))
+        }
+    }
+
     private func skipEmptyLines() {
         while currentLine < lines.count, lines[currentLine].isEmpty {
             currentLine += 1
@@ -1088,7 +1114,7 @@ private final class Parser {
         let width = fields.leafCount
 
         for _ in 0 ..< header.count {
-            skipEmptyLines()
+            try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !keyOrder.isEmpty)
 
             guard let line = peekLine() else { break }
 
@@ -1163,7 +1189,7 @@ private final class Parser {
         let expectedDepth = depth + 1
 
         for _ in 0 ..< count {
-            skipEmptyLines()
+            try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !rows.isEmpty)
 
             guard let line = consumeLine() else {
                 break
@@ -1207,7 +1233,7 @@ private final class Parser {
         let expectedDepth = depth + 1
 
         for _ in 0 ..< count {
-            skipEmptyLines()
+            try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !items.isEmpty)
 
             guard let line = peekLine() else {
                 break
@@ -1293,10 +1319,12 @@ private final class Parser {
                 }
             }
 
-            // Parse additional fields at depth + 1
+            // Parse additional fields at depth + 1. The fields of a list-item
+            // object are the content of its scope, so a blank line among them
+            // is interior and section 14.2 rejects it.
             while let nextLine = peekLine() {
                 if nextLine.isEmpty {
-                    _ = consumeLine()
+                    try skipBlankLines(insideScopeAtDepth: depth + 1, hasElement: true)
                     continue
                 }
 
