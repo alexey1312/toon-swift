@@ -563,7 +563,7 @@ public final class TOONEncoder {
     private func encodeArrayOfObjectsAsTabular(
         key: String?,
         rows: [Value],
-        header: [String],
+        header: [FieldNode],
         output: inout [String],
         depth: Int
     ) {
@@ -621,45 +621,72 @@ public final class TOONEncoder {
 
     // MARK: - Tabular Encoding
 
-    private func detectTabularHeader(_ rows: [Value]) -> [String]? {
-        guard let (_, keyOrder) = rows.first?.objectValue else { return nil }
-        if keyOrder.isEmpty { return nil }
-
-        if isTabularArray(rows: rows, header: keyOrder) {
-            return keyOrder
+    /// The field list for an array of uniform objects, or `nil` when the
+    /// array does not take the tabular form.
+    ///
+    /// TOON specification 9.3 requires every column - the values at one key
+    /// across the rows - to be uniform-primitive or nested-uniform. A
+    /// nested-uniform column collapses into a nested field group, and the
+    /// rule applies again inside it, with no depth cap.
+    ///
+    /// An array that holds an empty object never takes the tabular form,
+    /// because an empty object has no column to describe.
+    private func detectTabularHeader(_ rows: [Value]) -> [FieldNode]? {
+        guard let (_, keyOrder) = rows.first?.objectValue, !keyOrder.isEmpty else {
+            return nil
         }
-        return nil
-    }
 
-    private func isTabularArray(rows: [Value], header: [String]) -> Bool {
-        for rowValue in rows {
-            guard let (values, keyOrder) = rowValue.objectValue else { return false }
-
-            // All objects must have the same keys (but order can differ)
-            if keyOrder.count != header.count {
-                return false
+        // Every row is an object with the same set of keys. The order inside a
+        // row may differ; the header order wins, per section 9.3.
+        for row in rows {
+            guard let (values, order) = row.objectValue, order.count == keyOrder.count else {
+                return nil
             }
-
-            // Check that all header keys exist in the row and all values are primitives
-            for key in header {
-                guard let value = values[key] else { return false }
-                if !value.isPrimitive {
-                    return false
-                }
+            for key in keyOrder where values[key] == nil {
+                return nil
             }
         }
 
-        return true
+        var fields: [FieldNode] = []
+        for key in keyOrder {
+            let column = rows.compactMap { $0.objectValue?.values[key] }
+            if column.allSatisfy({ $0.isPrimitive }) {
+                fields.append(FieldNode(name: key))
+            } else if let children = detectTabularHeader(column) {
+                fields.append(FieldNode(name: key, children: children))
+            } else {
+                return nil
+            }
+        }
+
+        return fields
     }
 
-    private func writeTabularRows(rows: [Value], header: [String], output: inout [String], depth: Int) {
-        for rowValue in rows {
-            guard let (values, _) = rowValue.objectValue else { continue }
-            let rowValues = header.compactMap { key in values[key] }
-            let joinedValue = joinEncodedValues(
-                rowValues,
-                delimiter: delimiter.rawValue
-            )
+    /// The cells of one row, in the depth-first order of the leaves.
+    private func collectRowLeaves(_ row: Value, fields: [FieldNode]) -> [Value] {
+        guard let (values, _) = row.objectValue else { return [] }
+
+        var cells: [Value] = []
+        for field in fields {
+            guard let value = values[field.name] else { continue }
+            if let children = field.children {
+                cells.append(contentsOf: collectRowLeaves(value, fields: children))
+            } else {
+                cells.append(value)
+            }
+        }
+        return cells
+    }
+
+    private func writeTabularRows(
+        rows: [Value],
+        header: [FieldNode],
+        output: inout [String],
+        depth: Int
+    ) {
+        for row in rows {
+            let cells = collectRowLeaves(row, fields: header)
+            let joinedValue = joinEncodedValues(cells, delimiter: delimiter.rawValue)
             write(depth: depth, content: joinedValue, to: &output)
         }
     }
@@ -815,10 +842,22 @@ public final class TOONEncoder {
         return "\(header) \(joinedValue)"
     }
 
+    /// Renders a field list, and recurses into a nested field group.
+    ///
+    /// A name follows the key encoding of specification 7.3 at every level.
+    private func formatFieldList(_ fields: [FieldNode], delimiter: String) -> String {
+        fields.map { field in
+            guard let children = field.children else { return encodeKey(field.name) }
+            let inner = formatFieldList(children, delimiter: delimiter)
+            return "\(encodeKey(field.name)){\(inner)}"
+        }
+        .joined(separator: delimiter)
+    }
+
     private func formatHeader(
         length: Int,
         key: String? = nil,
-        fields: [String]? = nil,
+        fields: [FieldNode]? = nil,
         delimiter: String = ","
     ) -> String {
         var header = ""
@@ -832,8 +871,7 @@ public final class TOONEncoder {
         header += "[\(length)\(delimiterSuffix)]"
 
         if let fields = fields {
-            let quotedFields = fields.map { encodeKey($0) }
-            header += "{\(quotedFields.joined(separator: delimiter))}"
+            header += "{\(formatFieldList(fields, delimiter: delimiter))}"
         }
 
         header += ":"

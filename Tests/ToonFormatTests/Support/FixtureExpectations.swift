@@ -220,8 +220,6 @@ enum FixtureExpectations {
             "§10 uses canonical encoding for single-field list-item tabular arrays",
         "encode/arrays-objects.json#12":
             "§10 places empty arrays on hyphen line when first",
-        "encode/arrays-objects.json#17":
-            "§9.5 encodes a keyed-eligible object in a tabular column as a nested field group",
         "encode/arrays-objects.json#4":
             "§10 uses list form for objects containing arrays of arrays",
         "encode/arrays-objects.json#5":
@@ -236,18 +234,8 @@ enum FixtureExpectations {
             "§9.1 encodes empty arrays",
         "encode/arrays-primitive.json#5":
             "§9.1 encodes empty string keys for empty arrays",
-        "encode/arrays-tabular.json#10":
-            "§9.3 uses the active delimiter inside nested field groups",
-        "encode/arrays-tabular.json#11":
-            "§9.3 quotes subfield names inside nested field groups per key encoding",
         "encode/arrays-tabular.json#6":
             "§7.2 quotes hash-leading string in tabular cell",
-        "encode/arrays-tabular.json#7":
-            "§9.3 collapses a uniform nested object column into a nested field group",
-        "encode/arrays-tabular.json#8":
-            "§9.3 collapses sibling nested field groups with depth-first row layout",
-        "encode/arrays-tabular.json#9":
-            "§9.3 collapses nested field groups recursively without a depth cap",
         "encode/objects-keyed.json#0":
             "§9.5 encodes objects of uniform objects in keyed tabular form",
         "encode/objects-keyed.json#1":
