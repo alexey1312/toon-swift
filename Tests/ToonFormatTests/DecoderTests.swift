@@ -1233,12 +1233,16 @@ struct DecoderTests {
             let outer: Inner
         }
 
-        // Specification 12 computes the depth with the floor of the division,
-        // so three spaces at an indent size of two is depth one.
+        // Specification 14.2 makes an indentation that is not a multiple of
+        // the indent size an error in strict mode. Section 12 allows a decoder
+        // to accept it otherwise, and computes the depth with the floor of the
+        // division, so three spaces at an indent size of two is depth one.
         let toon = """
             outer:
                value: test
             """
+        let decoder = TOONDecoder()
+        decoder.strict = false
         let result = try decoder.decode(NestedObject.self, from: Data(toon.utf8))
         #expect(result.outer.value == "test")
     }

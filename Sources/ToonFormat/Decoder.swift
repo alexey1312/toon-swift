@@ -181,7 +181,7 @@ public final class TOONDecoder {
             throw TOONDecodingError.invalidFormat("Data is not valid UTF-8")
         }
 
-        let parser = Parser(
+        let parser = try Parser(
             text: text,
             indentSize: indentSize,
             strict: strict,
@@ -262,8 +262,8 @@ private final class Parser {
         strict: Bool,
         expandPaths: TOONDecoder.PathExpansion,
         limits: TOONDecoder.DecodingLimits
-    ) {
-        let document = LineScanner.scan(text)
+    ) throws {
+        let document = try LineScanner.scan(text, indentSize: indentSize, strict: strict)
         lines = document.lines
         sourceLineNumbers = document.sourceLineNumbers
         self.indentSize = indentSize

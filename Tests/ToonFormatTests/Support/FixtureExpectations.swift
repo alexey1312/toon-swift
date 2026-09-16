@@ -48,18 +48,6 @@ enum FixtureExpectations {
             "§5.1 decodes tab-indented hash row as data in non-strict mode",
         "decode/delimiters.json#28":
             "§6 falls through to a key-value line on a header delimiter mismatch",
-        "decode/indentation-errors.json#0":
-            "§14.2 throws on object field with non-multiple indentation (3 spaces with indentSize 2)",
-        "decode/indentation-errors.json#1":
-            "§14.2 throws on list item with non-multiple indentation (3 spaces with indentSize 2)",
-        "decode/indentation-errors.json#2":
-            "§14.2 throws on non-multiple indentation with custom indentSize 4 (3 spaces)",
-        "decode/indentation-errors.json#4":
-            "§14.2 throws on tab character used in indentation",
-        "decode/indentation-errors.json#5":
-            "§14.2 throws on mixed tabs and spaces in indentation",
-        "decode/indentation-errors.json#6":
-            "§14.2 throws on tab at start of line",
         "decode/objects-keyed.json#18":
             "§9.5 skips an entry-depth line without a colon in non-strict mode",
         "decode/objects.json#34":

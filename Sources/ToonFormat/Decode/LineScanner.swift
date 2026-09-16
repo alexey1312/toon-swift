@@ -38,7 +38,12 @@ enum LineScanner {
     ///    content. Removal never creates or terminates a scope: a comment
     ///    between two tabular rows does not end them, and a comment is never
     ///    counted as a row, an entry, a list item or a blank line.
-    static func scan(_ text: String) -> ScannedDocument {
+    /// - Parameters:
+    ///   - indentSize: The number of spaces of one level, for the strict
+    ///     indentation checks of section 12.
+    ///   - strict: Whether to apply those checks. In non-strict mode the depth
+    ///     uses the floor of the division, which section 12 permits.
+    static func scan(_ text: String, indentSize: Int, strict: Bool) throws -> ScannedDocument {
         // The scan runs over Unicode scalars, not over Characters. Swift treats
         // "\r\n" as one grapheme cluster, so a split of a String on "\n" does
         // not divide a CRLF pair.
@@ -67,6 +72,15 @@ enum LineScanner {
 
             let content = scalars[lineStart ..< end]
             if !isCommentLine(content) {
+                // Section 5.1 exempts a comment line from these checks, and a
+                // blank line carries no indentation to check.
+                if strict, !content.isEmpty {
+                    try validateIndentation(
+                        of: content,
+                        indentSize: indentSize,
+                        lineNumber: lineNumber
+                    )
+                }
                 lines.append(String(String.UnicodeScalarView(content)))
                 sourceLineNumbers.append(lineNumber)
             }
@@ -77,6 +91,41 @@ enum LineScanner {
         }
 
         return ScannedDocument(lines: lines, sourceLineNumbers: sourceLineNumbers)
+    }
+
+    /// Applies the strict indentation rules of specification 12 and 14.2.
+    ///
+    /// A tab in the indentation is an error. The number of leading spaces must
+    /// be a multiple of the indent size.
+    private static func validateIndentation(
+        of line: ArraySlice<Unicode.Scalar>,
+        indentSize: Int,
+        lineNumber: Int
+    ) throws {
+        var spaces = 0
+        var index = line.startIndex
+
+        while index < line.endIndex {
+            let scalar = line[index]
+            if scalar == " " {
+                spaces += 1
+            } else if scalar == "\t" {
+                throw TOONDecodingError.invalidIndentation(
+                    line: lineNumber,
+                    message: "A tab is not allowed in the indentation"
+                )
+            } else {
+                break
+            }
+            index += 1
+        }
+
+        if indentSize > 0, spaces % indentSize != 0 {
+            throw TOONDecodingError.invalidIndentation(
+                line: lineNumber,
+                message: "The indentation of \(spaces) spaces is not a multiple of \(indentSize)"
+            )
+        }
     }
 
     private static func isCommentLine(_ line: ArraySlice<Unicode.Scalar>) -> Bool {
