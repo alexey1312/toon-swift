@@ -455,10 +455,30 @@ private final class Parser {
     }
 
     private func parseKeyValuePair(_ content: String, atDepth depth: Int) throws -> (String, Value) {
-        // Check for array header first: key[N]{fields}:
-        if let header = try? parseArrayHeader(content) {
-            let array = try parseArrayContent(header: header, atDepth: depth)
-            return (header.key ?? "", array)
+        // Specification 5.2 classifies the line before anything reads it. A
+        // line whose first unquoted colon precedes any unquoted bracket is a
+        // key-value line, never a header.
+        if isArrayHeaderLine(content) {
+            var parsedHeader: ArrayHeader?
+            do {
+                parsedHeader = try parseArrayHeader(content)
+            } catch {
+                // A malformed header is an error in strict mode. Non-strict
+                // mode may fall through to the key-value reading below.
+                if strict { throw error }
+            }
+
+            if let header = parsedHeader {
+                // Specification 6 allows a keyless header only at the document
+                // root and, without a field list, as a list item.
+                if header.key == nil, strict {
+                    throw TOONDecodingError.invalidHeader(
+                        "A keyless array header is not allowed in object field position: \(content)"
+                    )
+                }
+                let array = try parseArrayContent(header: header, atDepth: depth)
+                return (header.key ?? "", array)
+            }
         }
 
         // Check for list item starting with "- "
@@ -580,6 +600,36 @@ private final class Parser {
         let isKeyed: Bool
     }
 
+    /// Whether the line is an array-header line, per specification 5.2.
+    ///
+    /// The line is a header when an unquoted bracket precedes the first
+    /// unquoted colon. A bracket inside a quoted key, or after the colon, is
+    /// content.
+    private func isArrayHeaderLine(_ content: String) -> Bool {
+        var inQuotes = false
+        var escaped = false
+
+        for char in content {
+            if escaped {
+                escaped = false
+                continue
+            }
+            if char == "\\" {
+                escaped = true
+                continue
+            }
+            if char == "\"" {
+                inQuotes.toggle()
+                continue
+            }
+            guard !inQuotes else { continue }
+            if char == "[" { return true }
+            if char == ":" { return false }
+        }
+
+        return false
+    }
+
     private func parseArrayHeader(_ content: String) throws -> ArrayHeader {
         // Pattern: [key][N{delimiter}]{fields}:
         // Examples: [3]:, key[2]:, items[3]{a,b,c}:, items[2|]{a|b}:
@@ -599,6 +649,14 @@ private final class Parser {
         } else if let bracketIndex = remaining.firstIndex(of: "[") {
             let keyPart = remaining[..<bracketIndex]
             if !keyPart.isEmpty {
+                // Specification 6 forbids whitespace between a key and its
+                // bracket segment; the token trimming of section 12 does not
+                // reach here.
+                if keyPart.last == " " || keyPart.last == "\t" {
+                    throw TOONDecodingError.invalidHeader(
+                        "Whitespace between the key and its bracket segment: \(content)"
+                    )
+                }
                 key = String(keyPart)
             }
             remaining = remaining[bracketIndex...]
@@ -616,8 +674,10 @@ private final class Parser {
         }
 
         // Parse count
+        // ASCII digits only. Character.isNumber matches every Unicode digit,
+        // which specification 6 does not allow here.
         var countStr = ""
-        while let char = remaining.first, char.isNumber {
+        while let char = remaining.first, char.isASCIIDigit {
             countStr.append(char)
             remaining = remaining.dropFirst()
         }
@@ -2104,4 +2164,9 @@ private extension Substring {
         guard first.isLetter || first == "_" else { return false }
         return dropFirst().allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
     }
+}
+
+extension Character {
+    /// `true` for U+0030 to U+0039 only.
+    fileprivate var isASCIIDigit: Bool { self >= "0" && self <= "9" }
 }

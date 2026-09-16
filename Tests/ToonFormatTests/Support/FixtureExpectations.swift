@@ -74,22 +74,12 @@ enum FixtureExpectations {
             "§10 parses a keyed header on a hyphen line",
         "decode/objects-keyed.json#18":
             "§9.5 skips an entry-depth line without a colon in non-strict mode",
-        "decode/objects.json#14":
-            "§8 parses quoted object value shaped like an inline array header",
-        "decode/objects.json#15":
-            "§8 parses quoted object value shaped like a count-matching inline array header",
-        "decode/objects.json#16":
-            "§6 parses unquoted value shaped like an inline array header after the key",
-        "decode/objects.json#17":
-            "§6 parses unquoted value shaped like a tabular array header after the key",
         "decode/objects.json#20":
             "§7.1 decodes \\uXXXX in quoted key (U+0004 control character)",
         "decode/objects.json#21":
             "§7.1 decodes \\uXXXX in quoted key (case-insensitive hex)",
         "decode/objects.json#34":
             "§8 parses dotted keys as identifiers",
-        "decode/objects.json#53":
-            "§5.2 falls through to a key-value line when whitespace precedes the bracket segment",
         "decode/primitives.json#8":
             "§7.1 decodes \\uXXXX escape (U+0004)",
         "decode/primitives.json#9":
@@ -100,56 +90,20 @@ enum FixtureExpectations {
             "§5 throws on trailing content after a root array",
         "decode/root-form.json#6":
             "§5 throws on trailing content after a keyed tabular root",
-        "decode/validation-errors.json#12":
-            "§6 throws on extra brackets between bracket segment and colon in strict mode",
-        "decode/validation-errors.json#13":
-            "§6 throws on text between bracket segment and colon in strict mode",
-        "decode/validation-errors.json#14":
-            "§6 throws on non-integer bracket segment in strict mode",
         "decode/validation-errors.json#15":
             "§14.3 throws on duplicate sibling keys in strict mode",
-        "decode/validation-errors.json#19":
-            "§6 throws on bracket length with leading zeros in strict mode",
-        "decode/validation-errors.json#20":
-            "§6 throws on negative bracket length in strict mode",
-        "decode/validation-errors.json#21":
-            "§6 throws on decimal bracket length in strict mode",
-        "decode/validation-errors.json#22":
-            "§6 throws on bracket length with plus sign in strict mode",
-        "decode/validation-errors.json#23":
-            "§6 throws on bracket length in exponent form in strict mode",
         "decode/validation-errors.json#26":
             "§14.3 throws on nested duplicate sibling keys in strict mode",
         "decode/validation-errors.json#27":
             "§14.3 throws on duplicate keys within a list-item object in strict mode",
-        "decode/validation-errors.json#28":
-            "§14.2 throws on bracket segment without a length",
         "decode/validation-errors.json#3":
             "§14.1 throws on tabular row count mismatch with header length",
         "decode/validation-errors.json#34":
             "§14.1 throws on entry row count mismatch with keyed header length",
-        "decode/validation-errors.json#37":
-            "§14.2 throws on keyed header without a field list in strict mode",
-        "decode/validation-errors.json#38":
-            "§6 throws on keyed marker after the delimiter symbol in strict mode",
-        "decode/validation-errors.json#39":
-            "§6 throws on keyed marker with leading-zero length in strict mode",
-        "decode/validation-errors.json#40":
-            "§6 throws on whitespace before the keyed marker in strict mode",
-        "decode/validation-errors.json#41":
-            "§6 throws on explicit comma delimiter after the keyed marker in strict mode",
         "decode/validation-errors.json#44":
             "§14.3 throws on duplicate entry keys in strict mode",
-        "decode/validation-errors.json#47":
-            "§6 throws on keyless array header in object field position",
-        "decode/validation-errors.json#48":
-            "§6 throws on keyless array header after a depth-0 field",
         "decode/validation-errors.json#49":
             "§6 throws on keyless fields-bearing header as list item",
-        "decode/validation-errors.json#52":
-            "§6 throws on whitespace between a key and its bracket segment",
-        "decode/validation-errors.json#53":
-            "§9.3 throws on duplicate field names in a zero-row tabular header",
         "decode/validation-errors.json#54":
             "§7.4 throws on characters after a closing quote in non-strict mode",
         "decode/validation-errors.json#7":
