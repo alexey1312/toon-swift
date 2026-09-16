@@ -572,7 +572,7 @@ private final class Parser {
     }
 
     private func parseKey(_ keyPart: String) throws -> String {
-        let trimmed = keyPart.trimmingCharacters(in: .whitespaces)
+        let trimmed = keyPart.trimmingSpaces()
 
         if trimmed.hasPrefix("\"") && trimmed.hasSuffix("\"") {
             // Quoted key
@@ -906,7 +906,7 @@ private final class Parser {
 
     /// Reads one entry of a field list, which may carry a nested group.
     private func parseField(_ field: String, delimiter: String) throws -> FieldNode {
-        let trimmed = field.trimmingCharacters(in: .whitespaces)
+        let trimmed = field.trimmingSpaces()
 
         guard let braceIndex = indexOfGroupBrace(in: trimmed) else {
             return FieldNode(name: try parseFieldName(trimmed))
@@ -953,7 +953,7 @@ private final class Parser {
     }
 
     private func parseFieldName(_ field: String) throws -> String {
-        let trimmed = field.trimmingCharacters(in: .whitespaces)
+        let trimmed = field.trimmingSpaces()
         if trimmed.hasPrefix("\"") && trimmed.hasSuffix("\"") {
             let inner = String(trimmed.dropFirst().dropLast())
             return try unescapeString(inner)
@@ -1383,7 +1383,7 @@ private final class Parser {
             }
 
             if !inQuotes, String(char) == delimiter {
-                try values.append(parsePrimitiveValue(current.trimmingCharacters(in: .whitespaces)))
+                try values.append(parsePrimitiveValue(current.trimmingSpaces()))
                 current = ""
                 continue
             }
@@ -1392,7 +1392,7 @@ private final class Parser {
         }
 
         // Handle last value
-        let trimmed = current.trimmingCharacters(in: .whitespaces)
+        let trimmed = current.trimmingSpaces()
         if !trimmed.isEmpty || !values.isEmpty {
             try values.append(parsePrimitiveValue(trimmed))
         }
@@ -1408,14 +1408,14 @@ private final class Parser {
     /// cell the same token is the string `[]`, so only this entry point
     /// recognizes it.
     private func parseValueInValuePosition(_ content: String) throws -> Value {
-        if content.trimmingCharacters(in: .whitespaces) == "[]" {
+        if content.trimmingSpaces() == "[]" {
             return .array([])
         }
         return try parsePrimitiveValue(content)
     }
 
     private func parsePrimitiveValue(_ content: String) throws -> Value {
-        let trimmed = content.trimmingCharacters(in: .whitespaces)
+        let trimmed = content.trimmingSpaces()
 
         if trimmed.isEmpty {
             return .string("")
@@ -2255,6 +2255,25 @@ private extension Substring {
         guard let first = first else { return false }
         guard first.isLetter || first == "_" else { return false }
         return dropFirst().allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
+    }
+}
+
+extension StringProtocol {
+    /// Removes the leading and trailing U+0020, and nothing else.
+    ///
+    /// TOON specification 12 states that token trimming takes exactly U+0020:
+    /// any other whitespace, such as a no-break space or a tab outside its
+    /// delimiter role, is part of the token. CharacterSet.whitespaces covers
+    /// every Unicode space separator, so it trims too much.
+    fileprivate func trimmingSpaces() -> String {
+        var scalars = Substring.UnicodeScalarView(unicodeScalars)
+        while scalars.first == " " {
+            scalars = scalars.dropFirst()
+        }
+        while scalars.last == " " {
+            scalars = scalars.dropLast()
+        }
+        return String(String.UnicodeScalarView(scalars))
     }
 }
 

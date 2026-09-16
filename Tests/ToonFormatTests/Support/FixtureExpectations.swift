@@ -64,10 +64,6 @@ enum FixtureExpectations {
             "§14.2 throws on unterminated string",
         "decode/whitespace.json#14":
             "§12 treats a hyphen followed by trailing spaces as the bare marker",
-        "decode/whitespace.json#6":
-            "§12 preserves NBSP-leading unquoted value",
-        "decode/whitespace.json#7":
-            "§12 preserves NBSP around inline array tokens",
         "encode/arrays-nested.json#10":
             "§8 encodes complex nested structure",
         "encode/arrays-nested.json#14":
