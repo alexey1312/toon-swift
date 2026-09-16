@@ -1260,9 +1260,22 @@ private final class Parser {
             var keyOrder: [String] = [key]
 
             if valuePart.isEmpty {
-                // Nested value
-                let nestedValue = try parseNestedValue(atDepth: depth + 1)
-                objectValues[key] = nestedValue
+                // A header on the hyphen line describes the first field of the
+                // list-item object. That field sits one level below the hyphen
+                // line, so its rows sit two levels below it (specification 10).
+                if isArrayHeaderLine(content),
+                    let header = try? parseArrayHeader(content),
+                    let headerKey = header.key
+                {
+                    keyOrder = [headerKey]
+                    objectValues[headerKey] = try parseArrayContent(
+                        header: header,
+                        atDepth: depth + 1
+                    )
+                } else {
+                    let nestedValue = try parseNestedValue(atDepth: depth + 1)
+                    objectValues[key] = nestedValue
+                }
             } else {
                 // Check if the key is an array header (like nums[3])
                 // The full string would be "nums[3]: 1,2,3"

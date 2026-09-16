@@ -422,7 +422,7 @@ public final class TOONEncoder {
                         content: "- \(headerStr)",
                         to: &output
                     )
-                    writeTabularRows(rows: array, header: header, output: &output, depth: depth + 1)
+                    writeTabularRows(rows: array, header: header, output: &output, depth: depth + 2)
                 } else {
                     write(
                         depth: depth,
@@ -435,7 +435,7 @@ public final class TOONEncoder {
                                 values: values,
                                 keyOrder: keyOrder,
                                 output: &output,
-                                depth: depth + 1
+                                depth: depth + 2
                             )
                         }
                     }
@@ -455,7 +455,7 @@ public final class TOONEncoder {
                             inObject: false
                         ) {
                             write(
-                                depth: depth + 1,
+                                depth: depth + 2,
                                 content: "- \(encoded)",
                                 to: &output
                             )
@@ -464,7 +464,7 @@ public final class TOONEncoder {
                         if innerArray.allSatisfy({ $0.isPrimitive }) {
                             let inline = formatInlineArray(values: innerArray, key: nil, inListItem: true)
                             write(
-                                depth: depth + 1,
+                                depth: depth + 2,
                                 content: "- \(inline)",
                                 to: &output
                             )
@@ -474,7 +474,7 @@ public final class TOONEncoder {
                             values: innerValues,
                             keyOrder: innerKeyOrder,
                             output: &output,
-                            depth: depth + 1
+                            depth: depth + 2
                         )
                     }
                 }

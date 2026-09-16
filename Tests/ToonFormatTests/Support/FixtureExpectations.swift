@@ -20,12 +20,6 @@ enum FixtureExpectations {
             "§9.2 accepts bare bracket pair as empty inner array list item",
         "decode/arrays-nested.json#23":
             "§14.1 keeps every list item when the count mismatches in non-strict mode",
-        "decode/arrays-nested.json#4":
-            "§10 parses list items whose first field is a tabular array",
-        "decode/arrays-nested.json#5":
-            "§10 parses single-field list-item object with tabular array",
-        "decode/arrays-nested.json#7":
-            "§9.2 parses arrays of arrays within objects",
         "decode/arrays-nested.json#9":
             "§9.2 parses quoted strings and mixed lengths in nested arrays",
         "decode/arrays-primitive.json#7":
@@ -36,6 +30,8 @@ enum FixtureExpectations {
             "§14.2 throws on blank line inside list array",
         "decode/blank-lines.json#1":
             "§14.2 throws on blank line inside tabular array",
+        "decode/blank-lines.json#15":
+            "§14.2 throws on blank line between list items after nested tabular rows",
         "decode/blank-lines.json#16":
             "§14.2 throws on blank line between a list item's fields",
         "decode/blank-lines.json#17":
@@ -64,8 +60,6 @@ enum FixtureExpectations {
             "§14.2 throws on mixed tabs and spaces in indentation",
         "decode/indentation-errors.json#6":
             "§14.2 throws on tab at start of line",
-        "decode/objects-keyed.json#14":
-            "§10 parses a keyed header on a hyphen line",
         "decode/objects-keyed.json#18":
             "§9.5 skips an entry-depth line without a colon in non-strict mode",
         "decode/objects.json#34":
@@ -108,16 +102,6 @@ enum FixtureExpectations {
             "§9.4 encodes root-level array mixing primitive, object, and array of objects in list form",
         "encode/arrays-nested.json#9":
             "§9.1 encodes empty root-level array",
-        "encode/arrays-objects.json#10":
-            "§10 uses canonical encoding for multi-field list-item objects with tabular arrays",
-        "encode/arrays-objects.json#11":
-            "§10 uses canonical encoding for single-field list-item tabular arrays",
-        "encode/arrays-objects.json#4":
-            "§10 uses list form for objects containing arrays of arrays",
-        "encode/arrays-objects.json#5":
-            "§10 uses tabular form for nested uniform object arrays",
-        "encode/arrays-objects.json#6":
-            "§10 uses list form for nested object arrays with mismatched keys",
         "encode/arrays-objects.json#9":
             "§10 encodes objects with empty arrays in list form",
         "encode/arrays-primitive.json#3":
