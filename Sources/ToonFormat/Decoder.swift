@@ -561,6 +561,19 @@ private final class Parser {
                 if strict { throw error }
             }
 
+            if let header = parsedHeader, header.fields != nil,
+                hasContentAfterHeaderColon(content)
+            {
+                // Specification 6 forbids content after the colon of a header
+                // that carries a field list: its rows live on the lines below.
+                if strict {
+                    throw TOONDecodingError.invalidHeader(
+                        "Content after the colon of a header that carries a field list: \(content)"
+                    )
+                }
+                parsedHeader = nil
+            }
+
             if let header = parsedHeader {
                 // Specification 6 allows a keyless header only at the document
                 // root and, without a field list, as a list item.
@@ -691,6 +704,50 @@ private final class Parser {
         let fields: [FieldNode]?
         /// The `[N:]` marker of specification 9.5.
         let isKeyed: Bool
+    }
+
+    /// The position of the colon that ends an array header.
+    ///
+    /// The search skips a quoted span, the bracket segment and the field
+    /// list, because each may hold a colon of its own: the keyed marker of
+    /// specification 9.5 sits inside the brackets, and a quoted field name may
+    /// carry anything.
+    private func headerColonIndex(in text: Substring) -> Substring.Index? {
+        var inQuotes = false
+        var escaped = false
+        var brackets = 0
+        var braces = 0
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            let char = text[index]
+            if escaped {
+                escaped = false
+            } else if char == "\\" {
+                escaped = true
+            } else if char == "\"" {
+                inQuotes.toggle()
+            } else if !inQuotes {
+                switch char {
+                case "[": brackets += 1
+                case "]": brackets -= 1
+                case "{": braces += 1
+                case "}": braces -= 1
+                case ":" where brackets == 0 && braces == 0:
+                    return index
+                default: break
+                }
+            }
+            index = text.index(after: index)
+        }
+
+        return nil
+    }
+
+    /// Whether the header line carries content after the colon that ends it.
+    private func hasContentAfterHeaderColon(_ content: String) -> Bool {
+        guard let colonIndex = headerColonIndex(in: content[...]) else { return false }
+        return !content[content.index(after: colonIndex)...].trimmingLeadingSpace().isEmpty
     }
 
     /// Whether the line is an array-header line, per specification 5.2.
@@ -1102,7 +1159,7 @@ private final class Parser {
         let contentStr = String(content)
 
         // Find where the header ends (after the colon)
-        if let colonIndex = contentStr.lastIndex(of: ":") {
+        if let colonIndex = headerColonIndex(in: contentStr[...]) {
             let afterColon = contentStr[contentStr.index(after: colonIndex)...]
             let inlineValues = afterColon.trimmingLeadingSpace()
 
@@ -1150,7 +1207,7 @@ private final class Parser {
     private func headerCarriesInlineContent() -> Bool {
         guard currentLine > 0, currentLine - 1 < lines.count else { return false }
         let (_, content) = trimIndentation(lines[currentLine - 1])
-        guard let colonIndex = content.lastIndex(of: ":") else { return false }
+        guard let colonIndex = headerColonIndex(in: content) else { return false }
         let afterColon = content[content.index(after: colonIndex)...]
         return !afterColon.trimmingLeadingSpace().isEmpty
     }
@@ -1189,10 +1246,16 @@ private final class Parser {
 
             _ = consumeLine()
 
+            // Specification 9.5: a line at entry depth without an unquoted
+            // colon is an error in strict mode, and may be skipped otherwise.
             guard let colonIndex = findUnquotedColon(in: content) else {
-                throw TOONDecodingError.invalidFormat(
-                    "An entry row of a keyed scope needs a colon, at line \(sourceLine(currentLine))"
-                )
+                if strict {
+                    throw TOONDecodingError.invalidFormat(
+                        "An entry row of a keyed scope needs a colon, at line "
+                            + "\(sourceLine(currentLine))"
+                    )
+                }
+                continue
             }
 
             let entryKey = try parseFieldName(String(content[..<colonIndex]))
@@ -1370,6 +1433,14 @@ private final class Parser {
         // Check for array header WITHOUT key: - [N]: a,b,c
         // This returns a bare array, not an object with an array field
         if content.hasPrefix("["), let header = try? parseArrayHeader(content) {
+            // Specification 6 allows a keyless header as a list item only
+            // without a field list.
+            if header.fields != nil, strict {
+                throw TOONDecodingError.invalidHeader(
+                    "A keyless header that carries a field list is not allowed as a list item: "
+                        + content
+                )
+            }
             return try parseArrayContent(header: header, atDepth: depth)
         }
 
