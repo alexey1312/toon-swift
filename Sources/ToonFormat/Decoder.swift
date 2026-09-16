@@ -1017,18 +1017,12 @@ private final class Parser {
             return .null
         }
 
-        // Number
-        if let intValue = Int64(trimmed) {
-            return .int(intValue)
+        // Number, per the normative grammar of specification 4. Anything that
+        // the grammar rejects is a string.
+        if let number = NumberGrammar.value(of: trimmed) {
+            return number
         }
 
-        if let doubleValue = Double(trimmed), trimmed.contains(".")
-            || trimmed.lowercased().contains("e")
-        {
-            return .double(doubleValue)
-        }
-
-        // Default to string
         return .string(trimmed)
     }
 
