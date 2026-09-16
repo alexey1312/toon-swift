@@ -44,18 +44,10 @@ enum FixtureExpectations {
             "§5 throws on trailing content after a root array",
         "decode/root-form.json#6":
             "§5 throws on trailing content after a keyed tabular root",
-        "decode/validation-errors.json#15":
-            "§14.3 throws on duplicate sibling keys in strict mode",
-        "decode/validation-errors.json#26":
-            "§14.3 throws on nested duplicate sibling keys in strict mode",
-        "decode/validation-errors.json#27":
-            "§14.3 throws on duplicate keys within a list-item object in strict mode",
         "decode/validation-errors.json#3":
             "§14.1 throws on tabular row count mismatch with header length",
         "decode/validation-errors.json#34":
             "§14.1 throws on entry row count mismatch with keyed header length",
-        "decode/validation-errors.json#44":
-            "§14.3 throws on duplicate entry keys in strict mode",
         "decode/validation-errors.json#49":
             "§6 throws on keyless fields-bearing header as list item",
         "decode/validation-errors.json#54":

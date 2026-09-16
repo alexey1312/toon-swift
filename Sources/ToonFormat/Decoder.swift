@@ -411,6 +411,36 @@ private final class Parser {
         }
     }
 
+    /// Stores a sibling key, per TOON specification 14.3.
+    ///
+    /// A repeated key is an error in strict mode. Otherwise the last write
+    /// wins, and the key keeps the position of its first appearance.
+    ///
+    /// Note a deviation that specification 2 permits when documented: the
+    /// comparison uses Swift String equality, which is canonical, so two keys
+    /// that differ only in normalization form count as one here. The public
+    /// ``TOONObject`` type compares by Unicode scalar sequence, as section 16
+    /// requires.
+    private func storeKey(
+        _ key: String,
+        value: Value,
+        into values: inout [String: Value],
+        keyOrder: inout [String]
+    ) throws {
+        if values[key] != nil {
+            if strict {
+                throw TOONDecodingError.invalidFormat(
+                    "Duplicate key '\(key)' at line \(sourceLine(currentLine))"
+                )
+            }
+            values[key] = value
+            return
+        }
+
+        keyOrder.append(key)
+        values[key] = value
+    }
+
     // MARK: - Object Parsing
 
     private func parseObject(atDepth depth: Int) throws -> Value {
@@ -465,10 +495,7 @@ private final class Parser {
                     }
                 }
             } else {
-                if !keyOrder.contains(key) {
-                    keyOrder.append(key)
-                }
-                values[key] = value
+                try storeKey(key, value: value, into: &values, keyOrder: &keyOrder)
             }
 
             // Check object key limit
@@ -1146,11 +1173,7 @@ private final class Parser {
             var cursor = 0
             let entry = materializeRow(fields: fields, cells: cells, cursor: &cursor)
 
-            // Specification 14.3 resolves a repeated entry key by last write
-            // wins, keeping the position of its first appearance.
-            if values.updateValue(entry, forKey: entryKey) == nil {
-                keyOrder.append(entryKey)
-            }
+            try storeKey(entryKey, value: entry, into: &values, keyOrder: &keyOrder)
         }
 
         return .object(values, keyOrder: keyOrder)
@@ -1342,10 +1365,12 @@ private final class Parser {
                 _ = consumeLine()
 
                 let (nextKey, nextValue) = try parseKeyValuePair(String(nextContent), atDepth: depth + 1)
-                if !keyOrder.contains(nextKey) {
-                    keyOrder.append(nextKey)
-                }
-                objectValues[nextKey] = nextValue
+                try storeKey(
+                    nextKey,
+                    value: nextValue,
+                    into: &objectValues,
+                    keyOrder: &keyOrder
+                )
             }
 
             return .object(objectValues, keyOrder: keyOrder)
