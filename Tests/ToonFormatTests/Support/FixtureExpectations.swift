@@ -48,8 +48,6 @@ enum FixtureExpectations {
             "§14.2 throws on blank line inside the last list item's fields",
         "decode/blank-lines.json#2":
             "§14.2 throws on blank line between keyed entry rows",
-        "decode/blank-lines.json#20":
-            "§12 accepts blank line between header and first entry row",
         "decode/blank-lines.json#3":
             "§14.2 throws on multiple blank lines inside array",
         "decode/blank-lines.json#4":
@@ -72,44 +70,10 @@ enum FixtureExpectations {
             "§14.2 throws on mixed tabs and spaces in indentation",
         "decode/indentation-errors.json#6":
             "§14.2 throws on tab at start of line",
-        "decode/objects-keyed.json#0":
-            "§9.5 parses keyed tabular objects",
-        "decode/objects-keyed.json#1":
-            "§9.5 parses a keyless keyed header as a root object",
-        "decode/objects-keyed.json#10":
-            "§9.5 decodes the cell token [] as a string, not an empty array",
-        "decode/objects-keyed.json#11":
-            "§9.5 accepts a declared entry count of zero",
-        "decode/objects-keyed.json#12":
-            "§9.5 accepts a single entry row",
-        "decode/objects-keyed.json#13":
-            "§9.5 parses quoted cells containing the active delimiter",
         "decode/objects-keyed.json#14":
             "§10 parses a keyed header on a hyphen line",
-        "decode/objects-keyed.json#15":
-            "§5.1 ignores comment lines between entry rows",
-        "decode/objects-keyed.json#16":
-            "§14.3 applies LWW for duplicate entry keys in non-strict mode",
-        "decode/objects-keyed.json#17":
-            "§7.4 accepts entry keys outside the encoder unquoted-key pattern",
         "decode/objects-keyed.json#18":
             "§9.5 skips an entry-depth line without a colon in non-strict mode",
-        "decode/objects-keyed.json#2":
-            "§9.5 parses nested field groups in keyed headers",
-        "decode/objects-keyed.json#3":
-            "§9.5 parses keyed headers with the pipe delimiter",
-        "decode/objects-keyed.json#4":
-            "§9.5 parses keyed headers with the tab delimiter",
-        "decode/objects-keyed.json#5":
-            "§9.5 parses quoted entry keys",
-        "decode/objects-keyed.json#6":
-            "§9.5 parses a quoted entry key containing a colon",
-        "decode/objects-keyed.json#7":
-            "§9.5 treats a key-value line at the header's depth as a sibling after entries end",
-        "decode/objects-keyed.json#8":
-            "§9.5 treats key-value-shaped lines at entry depth as entry rows",
-        "decode/objects-keyed.json#9":
-            "§9.5 splits an entry row at its first unquoted colon before delimiter splitting",
         "decode/objects.json#14":
             "§8 parses quoted object value shaped like an inline array header",
         "decode/objects.json#15":
@@ -164,10 +128,6 @@ enum FixtureExpectations {
             "§14.1 throws on tabular row count mismatch with header length",
         "decode/validation-errors.json#34":
             "§14.1 throws on entry row count mismatch with keyed header length",
-        "decode/validation-errors.json#35":
-            "§14.1 throws on entry row cell count not matching the leaf-field count",
-        "decode/validation-errors.json#36":
-            "§14.1 throws on an entry row with no cells after the entry key",
         "decode/validation-errors.json#37":
             "§14.2 throws on keyed header without a field list in strict mode",
         "decode/validation-errors.json#38":
@@ -186,10 +146,6 @@ enum FixtureExpectations {
             "§6 throws on keyless array header after a depth-0 field",
         "decode/validation-errors.json#49":
             "§6 throws on keyless fields-bearing header as list item",
-        "decode/validation-errors.json#50":
-            "§6 throws on inline content after tabular header",
-        "decode/validation-errors.json#51":
-            "§6 throws on inline content after root tabular header",
         "decode/validation-errors.json#52":
             "§6 throws on whitespace between a key and its bracket segment",
         "decode/validation-errors.json#53":

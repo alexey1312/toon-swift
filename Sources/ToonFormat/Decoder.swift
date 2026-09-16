@@ -576,6 +576,8 @@ private final class Parser {
         let count: Int
         let delimiter: String
         let fields: [FieldNode]?
+        /// The `[N:]` marker of specification 9.5.
+        let isKeyed: Bool
     }
 
     private func parseArrayHeader(_ content: String) throws -> ArrayHeader {
@@ -624,6 +626,22 @@ private final class Parser {
             throw TOONDecodingError.invalidHeader("Invalid count in array header: \(content)")
         }
 
+        // Specification 6 forbids a leading zero in the length.
+        if countStr.count > 1, countStr.hasPrefix("0") {
+            throw TOONDecodingError.invalidHeader(
+                "Leading zero in the length of an array header: \(content)"
+            )
+        }
+
+        // A colon immediately after the length marks a keyed header
+        // (specification 9.5). The delimiter follows the colon, so `[2:|]` is
+        // well-formed while `[2|:]` is not.
+        var isKeyed = false
+        if remaining.first == ":" {
+            isKeyed = true
+            remaining = remaining.dropFirst()
+        }
+
         // Check for delimiter indicator
         var delimiter = ","
         if let first = remaining.first, first == "|" || first == "\t" {
@@ -667,11 +685,19 @@ private final class Parser {
             throw TOONDecodingError.invalidHeader("Expected ':' at end of array header: \(content)")
         }
 
+        // Specification 9.5 requires a field list on a keyed header.
+        if isKeyed, fields == nil {
+            throw TOONDecodingError.invalidHeader(
+                "A keyed header requires a field list: \(content)"
+            )
+        }
+
         return ArrayHeader(
             key: key,
             count: count,
             delimiter: delimiter,
-            fields: fields
+            fields: fields,
+            isKeyed: isKeyed
         )
     }
 
@@ -900,6 +926,20 @@ private final class Parser {
             throw TOONDecodingError.arrayLengthLimitExceeded(length: header.count, limit: limits.maxArrayLength)
         }
 
+        // Specification 6 forbids content after the colon of a header that
+        // carries a field list: the rows live on the lines below it.
+        if strict, header.fields != nil, headerCarriesInlineContent() {
+            throw TOONDecodingError.invalidHeader(
+                "Content after the colon of a header that carries a field list, at line "
+                    + "\(sourceLine(currentLine - 1))"
+            )
+        }
+
+        // A keyed header describes an object, not an array (specification 9.5).
+        if header.isKeyed {
+            return try parseKeyedEntryRows(header: header, atDepth: depth)
+        }
+
         // Check for inline values after header
         // For example: tags[3]: a,b,c
 
@@ -956,6 +996,101 @@ private final class Parser {
         }
 
         return .array(items)
+    }
+
+    /// Whether the header line that was just consumed carries content after
+    /// its final colon.
+    private func headerCarriesInlineContent() -> Bool {
+        guard currentLine > 0, currentLine - 1 < lines.count else { return false }
+        let (_, content) = trimIndentation(lines[currentLine - 1])
+        guard let colonIndex = content.lastIndex(of: ":") else { return false }
+        let afterColon = content[content.index(after: colonIndex)...]
+        return !afterColon.trimmingLeadingSpace().isEmpty
+    }
+
+    /// Reads the entry rows of a keyed tabular scope (specification 9.5).
+    ///
+    /// Each row splits in two steps. First at its first unquoted colon: the
+    /// token before the colon is the entry key. Then the remainder splits on
+    /// the active delimiter into cells, and decodes exactly as a row of
+    /// section 9.3, so a nested field group materializes recursively.
+    ///
+    /// `alice: []` is one cell that decodes to the string `[]`; the
+    /// empty-array form of section 9.1 does not apply inside an entry row.
+    private func parseKeyedEntryRows(header: ArrayHeader, atDepth depth: Int) throws -> Value {
+        guard let fields = header.fields else {
+            throw TOONDecodingError.invalidHeader("A keyed header requires a field list")
+        }
+
+        var values: [String: Value] = [:]
+        var keyOrder: [String] = []
+        let expectedDepth = depth + 1
+        let width = fields.leafCount
+
+        for _ in 0 ..< header.count {
+            skipEmptyLines()
+
+            guard let line = peekLine() else { break }
+
+            let (lineDepth, content) = trimIndentation(line)
+            if lineDepth != expectedDepth {
+                break
+            }
+
+            _ = consumeLine()
+
+            guard let colonIndex = findUnquotedColon(in: content) else {
+                throw TOONDecodingError.invalidFormat(
+                    "An entry row of a keyed scope needs a colon, at line \(sourceLine(currentLine))"
+                )
+            }
+
+            let entryKey = try parseFieldName(String(content[..<colonIndex]))
+            let rest = content[content.index(after: colonIndex)...].trimmingLeadingSpace()
+            let cells = try parseDelimitedValues(String(rest), delimiter: header.delimiter)
+
+            if cells.count != width {
+                throw TOONDecodingError.fieldCountMismatch(
+                    expected: width,
+                    actual: cells.count,
+                    line: sourceLine(currentLine)
+                )
+            }
+
+            var cursor = 0
+            let entry = materializeRow(fields: fields, cells: cells, cursor: &cursor)
+
+            // Specification 14.3 resolves a repeated entry key by last write
+            // wins, keeping the position of its first appearance.
+            if values.updateValue(entry, forKey: entryKey) == nil {
+                keyOrder.append(entryKey)
+            }
+        }
+
+        return .object(values, keyOrder: keyOrder)
+    }
+
+    /// The position of the first colon that sits outside a quoted span.
+    private func findUnquotedColon(in text: Substring) -> Substring.Index? {
+        var inQuotes = false
+        var escaped = false
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            let char = text[index]
+            if escaped {
+                escaped = false
+            } else if char == "\\" {
+                escaped = true
+            } else if char == "\"" {
+                inQuotes.toggle()
+            } else if char == ":", !inQuotes {
+                return index
+            }
+            index = text.index(after: index)
+        }
+
+        return nil
     }
 
     private func parseTabularRows(
