@@ -1140,14 +1140,8 @@ private final class Parser {
             items = try parseListItems(count: header.count, delimiter: header.delimiter, atDepth: depth)
         }
 
-        if items.count != header.count {
-            throw TOONDecodingError.countMismatch(
-                expected: header.count,
-                actual: items.count,
-                line: sourceLine(currentLine)
-            )
-        }
-
+        // The readers above already apply the length rule of specification
+        // 14.1, which is a strict-mode check and never truncates the scope.
         return .array(items)
     }
 
@@ -1361,6 +1355,18 @@ private final class Parser {
     }
 
     private func parseListItemContent(_ content: String, atDepth depth: Int, delimiter _: String) throws -> Value {
+        // The bare marker of specification 9.4: a hyphen with nothing after it
+        // is an empty object.
+        if content.isEmpty {
+            return .object([:], keyOrder: [])
+        }
+
+        // Specification 9.2 gives the literal token `[]` on a list-item line
+        // the meaning of an empty array.
+        if content == "[]" {
+            return .array([])
+        }
+
         // Check for array header WITHOUT key: - [N]: a,b,c
         // This returns a bare array, not an object with an array field
         if content.hasPrefix("["), let header = try? parseArrayHeader(content) {
