@@ -192,22 +192,8 @@ enum FixtureExpectations {
             "§9.1 encodes empty string keys for empty arrays",
         "encode/arrays-tabular.json#6":
             "§7.2 quotes hash-leading string in tabular cell",
-        "encode/objects-keyed.json#0":
-            "§9.5 encodes objects of uniform objects in keyed tabular form",
-        "encode/objects-keyed.json#1":
-            "§9.5 encodes an eligible root object with a keyless keyed header",
         "encode/objects-keyed.json#11":
             "§10 emits a keyed header on the hyphen line when it is the first field of a list item",
-        "encode/objects-keyed.json#2":
-            "§9.5 collapses uniform nested object columns inside keyed headers",
-        "encode/objects-keyed.json#3":
-            "§9.5 orders fields by the first entry value's encounter order",
-        "encode/objects-keyed.json#4":
-            "§9.5 uses the active delimiter in keyed headers and entry-row cells",
-        "encode/objects-keyed.json#5":
-            "§9.5 quotes entry keys per key encoding",
-        "encode/objects-keyed.json#6":
-            "§9.5 quotes entry-row cells containing the active delimiter",
         "encode/objects.json#21":
             "§7.3 quotes non-ASCII key",
         "encode/objects.json#26":

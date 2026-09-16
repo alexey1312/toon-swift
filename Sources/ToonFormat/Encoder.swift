@@ -204,7 +204,19 @@ public final class TOONEncoder {
             encodeArray(key: nil, array: array, output: &output, depth: depth)
 
         case .object(let values, let keyOrder):
-            encodeObject(values, keyOrder: keyOrder, output: &output, depth: depth)
+            // At the root the keyed header carries no key (specification 9.5).
+            if depth == 0, let header = detectKeyedTabularHeader(values, keyOrder: keyOrder) {
+                encodeKeyedTabular(
+                    key: nil,
+                    values: values,
+                    keyOrder: keyOrder,
+                    header: header,
+                    output: &output,
+                    depth: depth
+                )
+            } else {
+                encodeObject(values, keyOrder: keyOrder, output: &output, depth: depth)
+            }
         }
     }
 
@@ -345,6 +357,17 @@ public final class TOONEncoder {
         case .object(let values, let keyOrder):
             if keyOrder.isEmpty {
                 write(depth: depth, content: "\(encodedKey):", to: &output)
+            } else if let header = detectKeyedTabularHeader(values, keyOrder: keyOrder) {
+                // Specification 9.5 makes the keyed tabular form mandatory in
+                // object-field position wherever detection succeeds.
+                encodeKeyedTabular(
+                    key: key,
+                    values: values,
+                    keyOrder: keyOrder,
+                    header: header,
+                    output: &output,
+                    depth: depth
+                )
             } else {
                 write(depth: depth, content: "\(encodedKey):", to: &output)
                 encodeObject(values, keyOrder: keyOrder, output: &output, depth: depth + 1)
@@ -660,6 +683,52 @@ public final class TOONEncoder {
         }
 
         return fields
+    }
+
+    /// The field list for an object that takes the keyed tabular form, or
+    /// `nil` when it does not.
+    ///
+    /// TOON specification 9.5 requires at least two entries, and every entry
+    /// value to be a non-empty object. The columns then follow the rules of
+    /// section 9.3, so the detection reuses ``detectTabularHeader``.
+    private func detectKeyedTabularHeader(
+        _ values: [String: Value],
+        keyOrder: [String]
+    ) -> [FieldNode]? {
+        guard keyOrder.count >= 2 else { return nil }
+
+        let entries = keyOrder.compactMap { values[$0] }
+        guard entries.count == keyOrder.count, entries.allSatisfy({ $0.isObject }) else {
+            return nil
+        }
+
+        return detectTabularHeader(entries)
+    }
+
+    /// Writes a keyed tabular scope: the header, then one row per entry.
+    private func encodeKeyedTabular(
+        key: String?,
+        values: [String: Value],
+        keyOrder: [String],
+        header: [FieldNode],
+        output: inout [String],
+        depth: Int
+    ) {
+        var headerStr = ""
+        if let key = key {
+            headerStr += encodeKey(key)
+        }
+        let delimiterSuffix = delimiter.rawValue != "," ? delimiter.rawValue : ""
+        headerStr += "[\(keyOrder.count):\(delimiterSuffix)]"
+        headerStr += "{\(formatFieldList(header, delimiter: delimiter.rawValue))}:"
+        write(depth: depth, content: headerStr, to: &output)
+
+        for entryKey in keyOrder {
+            guard let entry = values[entryKey] else { continue }
+            let cells = collectRowLeaves(entry, fields: header)
+            let row = joinEncodedValues(cells, delimiter: delimiter.rawValue)
+            write(depth: depth + 1, content: "\(encodeKey(entryKey)): \(row)", to: &output)
+        }
     }
 
     /// The cells of one row, in the depth-first order of the leaves.
