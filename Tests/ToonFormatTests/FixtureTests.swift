@@ -24,7 +24,7 @@ struct FixtureTests {
         try withKnownIssue(fixture.gapComment, isIntermittent: false) {
             let encoder = TOONEncoder()
             encoder.delimiter = fixture.options.delimiter
-            encoder.indent = fixture.options.indentSize
+            encoder.indentSize = fixture.options.indentSize
 
             guard !fixture.shouldError else {
                 #expect(throws: (any Error).self) {

@@ -2,11 +2,24 @@ import Foundation
 
 /// An encoder that converts Swift values into TOON format.
 ///
-/// This encoder conforms to the TOON (Token-Oriented Object Notation) specification version 3.0.
+/// This encoder conforms to the TOON (Token-Oriented Object Notation) specification version 4.1.
 /// For more information, see https://github.com/toon-format/spec
 public final class TOONEncoder {
-    /// The number of spaces per indentation level.
-    public var indent: Int = 2
+    /// The number of spaces of one indentation level.
+    ///
+    /// TOON specification 13.1 names this option `indentSize`, with a default
+    /// of 2.
+    public var indentSize: Int = 2
+
+    /// The former name of ``indentSize``.
+    ///
+    /// Specification 3.3 renamed the option, and says an implementation may
+    /// keep the old name as a deprecated alias.
+    @available(*, deprecated, renamed: "indentSize")
+    public var indent: Int {
+        get { indentSize }
+        set { indentSize = newValue }
+    }
 
     /// The delimiter character used to separate array values and tabular row cells.
     ///
@@ -93,7 +106,23 @@ public final class TOONEncoder {
     /// user.profile.name: John
     /// user.profile.age: 30
     /// ```
-    public var keyFolding: KeyFolding = .disabled
+    @available(
+        *,
+        deprecated,
+        message: """
+            TOON specification 4.0 removed key folding. The option still \
+            works, and stays off by default, but its output does not conform \
+            to specification 4.1. It is removed in 2.0.
+            """
+    )
+    public var keyFolding: KeyFolding {
+        get { storedKeyFolding }
+        set { storedKeyFolding = newValue }
+    }
+
+    /// Backing storage, so that the library can read the option without
+    /// raising its own deprecation warning.
+    private var storedKeyFolding: KeyFolding = .disabled
 
     /// The maximum number of segments to include in a folded path when `keyFolding` is `.safe`.
     ///
@@ -108,7 +137,22 @@ public final class TOONEncoder {
     /// Example with `flattenDepth = Int.max` (default):
     /// - Input: `{ a: { b: { c: 1 } } }`
     /// - Output: `a.b.c: 1`
-    public var flattenDepth: Int = .max
+    @available(
+        *,
+        deprecated,
+        message: """
+            TOON specification 4.0 removed key folding, which is the only \
+            thing this option affects. It is removed in 2.0.
+            """
+    )
+    public var flattenDepth: Int {
+        get { storedFlattenDepth }
+        set { storedFlattenDepth = newValue }
+    }
+
+    /// Backing storage, so that the library can read the option without
+    /// raising its own deprecation warning.
+    private var storedFlattenDepth: Int = .max
 
     /// Limits for encoding to prevent resource exhaustion.
     public struct EncodingLimits: Hashable, Sendable {
@@ -140,7 +184,7 @@ public final class TOONEncoder {
     /// Creates a new TOON encoder with default configuration.
     ///
     /// Default settings:
-    /// - `indent`: 2 spaces
+    /// - `indentSize`: 2 spaces
     /// - `delimiter`: `.comma`
     /// - `negativeZeroEncodingStrategy`: `.normalize`
     /// - `nonConformingFloatEncodingStrategy`: `.null`
@@ -256,10 +300,10 @@ public final class TOONEncoder {
         value: Value,
         siblingKeys: [String] = []
     ) -> (path: String, value: Value, hitDepthLimit: Bool)? {
-        guard keyFolding == .safe else { return nil }
+        guard storedKeyFolding == .safe else { return nil }
 
         // Values less than 2 have no practical folding effect
-        guard flattenDepth >= 2 else { return nil }
+        guard storedFlattenDepth >= 2 else { return nil }
 
         var pathComponents: [String] = [key]
         var currentValue = value
@@ -272,7 +316,7 @@ public final class TOONEncoder {
             let nextValue = nestedValues[singleKey]
         {
             // Stop if we've reached the flattenDepth limit
-            guard pathComponents.count < flattenDepth else {
+            guard pathComponents.count < storedFlattenDepth else {
                 hitDepthLimit = true
                 break
             }
@@ -1018,7 +1062,7 @@ public final class TOONEncoder {
     }
 
     private func write(depth: Int, content: String, to output: inout [String]) {
-        let indentation = String(repeating: String(repeating: " ", count: indent), count: depth)
+        let indentation = String(repeating: String(repeating: " ", count: indentSize), count: depth)
         output.append(indentation + content)
     }
 }

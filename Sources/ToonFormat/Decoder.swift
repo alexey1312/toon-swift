@@ -2,7 +2,7 @@ import Foundation
 
 /// A decoder that converts TOON format data into Swift values.
 ///
-/// This decoder conforms to the TOON (Token-Oriented Object Notation) specification version 3.0.
+/// This decoder conforms to the TOON (Token-Oriented Object Notation) specification version 4.1.
 /// For more information, see https://github.com/toon-format/spec
 public final class TOONDecoder {
     /// The path expansion mode for dotted keys.
@@ -209,6 +209,21 @@ public final class TOONDecoder {
 
         let decoder = Decoder(value: value, codingPath: [], userInfo: [:])
         return try T(from: decoder)
+    }
+
+    /// Decodes a TOON document into the given type.
+    ///
+    /// TOON specification 4 scopes its rule about ill-formed UTF-8 to byte
+    /// input, so this overload, which takes text that is already decoded,
+    /// does not apply it.
+    ///
+    /// - Parameters:
+    ///   - type: The type to decode into.
+    ///   - text: The document text.
+    /// - Returns: The decoded value.
+    /// - Throws: ``TOONDecodingError`` if decoding fails.
+    public func decode<T: Decodable>(_ type: T.Type, from text: String) throws -> T {
+        try decode(type, from: Data(text.utf8))
     }
 }
 

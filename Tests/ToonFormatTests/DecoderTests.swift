@@ -1034,6 +1034,7 @@ struct DecoderTests {
         #expect(result.status == .active)
     }
 
+    @available(*, deprecated)
     @Test func intBackedEnum() async throws {
         enum Priority: Int, Codable {
             case low = 1
@@ -1053,6 +1054,7 @@ struct DecoderTests {
 
     // MARK: - Path Expansion
 
+    @available(*, deprecated)
     @Test func pathExpansionDisabled() async throws {
         struct DottedKeyObject: Codable, Equatable {
             let key: String
@@ -1071,6 +1073,7 @@ struct DecoderTests {
         #expect(result.key == "Ada")
     }
 
+    @available(*, deprecated)
     @Test func pathExpansionSafe() async throws {
         struct NestedObject: Codable, Equatable {
             struct User: Codable, Equatable {
@@ -1169,6 +1172,7 @@ struct DecoderTests {
         }
     }
 
+    @available(*, deprecated)
     @Test func multipleLevelPathExpansion() async throws {
         struct DeepNested: Codable, Equatable {
             struct Level1: Codable, Equatable {
@@ -1258,7 +1262,7 @@ struct DecoderTests {
     // MARK: - Specification Compliance
 
     @Test func versionDeclaration() async throws {
-        #expect(toonSpecVersion == "3.0")
+        #expect(toonSpecVersion == "4.1")
     }
 
     // MARK: - Error Cases

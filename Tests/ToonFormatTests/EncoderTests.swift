@@ -1489,6 +1489,7 @@ struct EncoderTests {
 
     // MARK: - Whitespace and Formatting Invariants
 
+    @available(*, deprecated)
     @Test func noTrailingSpaces() async throws {
         struct WhitespaceTestObject: Codable {
             struct User: Codable {
@@ -1511,6 +1512,7 @@ struct EncoderTests {
         }
     }
 
+    @available(*, deprecated)
     @Test func noTrailingNewline() async throws {
         struct WhitespaceTestObject: Codable {
             struct User: Codable {
@@ -1539,6 +1541,7 @@ struct EncoderTests {
 
     // MARK: - Key Folding Tests (TOON 2.1+)
 
+    @available(*, deprecated)
     @Test func keyFoldingDisabled() async throws {
         struct NestedObject: Codable {
             struct User: Codable {
@@ -1564,6 +1567,7 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func keyFoldingSafe() async throws {
         struct NestedObject: Codable {
             struct User: Codable {
@@ -1587,6 +1591,7 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func keyFoldingWithMultipleFields() async throws {
         struct Config: Codable {
             struct Database: Codable {
@@ -1621,6 +1626,7 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func keyFoldingStopsAtInvalidIdentifier() async throws {
         // Keys with hyphens cannot be folded
         struct ValidThenInvalid: Codable {
@@ -1656,6 +1662,7 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func keyFoldingWithArray() async throws {
         struct Container: Codable {
             struct Wrapper: Codable {
@@ -1676,10 +1683,12 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func versionDeclaration() async throws {
-        #expect(toonSpecVersion == "3.0")
+        #expect(toonSpecVersion == "4.1")
     }
 
+    @available(*, deprecated)
     @Test func canonicalNumberFormat() async throws {
         // TOON specification requires canonical decimal form: no trailing fractional zeros
         struct Numbers: Codable {
@@ -1703,6 +1712,7 @@ struct EncoderTests {
 
     // MARK: - flattenDepth Tests (TOON 3.0)
 
+    @available(*, deprecated)
     @Test func flattenDepthUnlimited() async throws {
         struct DeepNested: Codable {
             struct Level1: Codable {
@@ -1731,6 +1741,7 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func flattenDepthLimited() async throws {
         struct DeepNested: Codable {
             struct Level1: Codable {
@@ -1761,6 +1772,7 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func flattenDepthThree() async throws {
         struct DeepNested: Codable {
             struct Level1: Codable {
@@ -1790,6 +1802,7 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func flattenDepthOne() async throws {
         // flattenDepth < 2 has no practical folding effect
         struct NestedObject: Codable {
@@ -1814,6 +1827,7 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func recursionLimitTriggersOnDeepEncoding() async throws {
         indirect enum NestableValue: Codable, Equatable {
             case int(Int)
@@ -1847,6 +1861,7 @@ struct EncoderTests {
 
     // MARK: - Collision Avoidance Tests (TOON 3.0)
 
+    @available(*, deprecated)
     @Test func keyFoldingCollisionAvoidance() async throws {
         // Test that folding doesn't create keys that collide with existing siblings
         // The key "a.b" is a literal sibling key, and folding "a" -> {b: 1} would create "a.b"
@@ -1881,6 +1896,7 @@ struct EncoderTests {
         #expect(result == expected)
     }
 
+    @available(*, deprecated)
     @Test func keyFoldingNoCollision() async throws {
         // Test normal folding when there's no collision
         struct NoCollision: Codable {
