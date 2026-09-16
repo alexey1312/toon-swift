@@ -74,16 +74,8 @@ enum FixtureExpectations {
             "§10 parses a keyed header on a hyphen line",
         "decode/objects-keyed.json#18":
             "§9.5 skips an entry-depth line without a colon in non-strict mode",
-        "decode/objects.json#20":
-            "§7.1 decodes \\uXXXX in quoted key (U+0004 control character)",
-        "decode/objects.json#21":
-            "§7.1 decodes \\uXXXX in quoted key (case-insensitive hex)",
         "decode/objects.json#34":
             "§8 parses dotted keys as identifiers",
-        "decode/primitives.json#8":
-            "§7.1 decodes \\uXXXX escape (U+0004)",
-        "decode/primitives.json#9":
-            "§7.1 decodes \\uXXXX with mixed-case hex digits",
         "decode/root-form.json#4":
             "§5 parses literal [] at root as empty array",
         "decode/root-form.json#5":
@@ -116,8 +108,6 @@ enum FixtureExpectations {
             "§12 preserves NBSP around inline array tokens",
         "encode/arrays-nested.json#10":
             "§8 encodes complex nested structure",
-        "encode/arrays-nested.json#13":
-            "§7.2 quotes hash-leading string as list item",
         "encode/arrays-nested.json#14":
             "§9.3 uses list form for a tabular-eligible array in list-item position",
         "encode/arrays-nested.json#7":
@@ -138,35 +128,15 @@ enum FixtureExpectations {
             "§10 uses list form for nested object arrays with mismatched keys",
         "encode/arrays-objects.json#9":
             "§10 encodes objects with empty arrays in list form",
-        "encode/arrays-primitive.json#12":
-            "§7.2 quotes hash-leading string in inline array",
         "encode/arrays-primitive.json#3":
             "§9.1 encodes empty arrays",
         "encode/arrays-primitive.json#5":
             "§9.1 encodes empty string keys for empty arrays",
-        "encode/arrays-tabular.json#6":
-            "§7.2 quotes hash-leading string in tabular cell",
         "encode/objects-keyed.json#11":
             "§10 emits a keyed header on the hyphen line when it is the first field of a list item",
-        "encode/objects.json#21":
-            "§7.3 quotes non-ASCII key",
-        "encode/objects.json#26":
-            "§7.1 escapes U+0004 control character in key via \\uXXXX",
         "encode/objects.json#27":
             "§7.1 escapes U+001F control character in key via \\uXXXX",
-        "encode/objects.json#33":
-            "§7.2 quotes hash-leading string in object field value",
-        "encode/primitives.json#13":
-            "§7.1 encodes string with U+0004 control character via \\uXXXX",
         "encode/primitives.json#37":
             "§2 encodes repeating decimal with full precision",
-        "encode/primitives.json#41":
-            "§7.2 quotes leading-plus numeric-like string",
-        "encode/primitives.json#42":
-            "§7.2 quotes string equal to hash",
-        "encode/primitives.json#43":
-            "§7.2 quotes string starting with hash",
-        "encode/whitespace.json#3":
-            "§7.2 leaves non-ASCII whitespace unquoted",
     ]
 }

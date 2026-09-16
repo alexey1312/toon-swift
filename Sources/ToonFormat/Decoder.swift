@@ -1396,34 +1396,71 @@ private final class Parser {
 
     // MARK: - String Handling
 
+    /// Unescapes a quoted span, per TOON specification 7.1.
+    ///
+    /// The table has five short forms plus `\uXXXX`, whose hexadecimal digits
+    /// are case-insensitive. A surrogate escape is rejected: section 7.1 says
+    /// that a lone surrogate MUST error, and that a supplementary scalar MUST
+    /// arrive as literal UTF-8 rather than as a surrogate pair. Any other
+    /// escape, and a trailing backslash, are errors.
     private func unescapeString(_ str: String) throws -> String {
-        var result = ""
-        var escaped = false
+        var result = String.UnicodeScalarView()
+        let scalars = Array(str.unicodeScalars)
+        var index = 0
 
-        for char in str {
-            if escaped {
-                switch char {
-                case "\\": result.append("\\")
-                case "\"": result.append("\"")
-                case "n": result.append("\n")
-                case "r": result.append("\r")
-                case "t": result.append("\t")
-                default:
-                    throw TOONDecodingError.invalidEscapeSequence("Invalid escape sequence: \\\(char)")
+        while index < scalars.count {
+            let scalar = scalars[index]
+            index += 1
+
+            guard scalar == "\\" else {
+                result.append(scalar)
+                continue
+            }
+
+            guard index < scalars.count else {
+                throw TOONDecodingError.invalidEscapeSequence("Trailing backslash in string")
+            }
+
+            let marker = scalars[index]
+            index += 1
+
+            switch marker {
+            case "\\": result.append("\\")
+            case "\"": result.append("\"")
+            case "n": result.append("\n")
+            case "r": result.append("\r")
+            case "t": result.append("\t")
+            case "u":
+                guard index + 4 <= scalars.count else {
+                    throw TOONDecodingError.invalidEscapeSequence(
+                        "A \\u escape needs four hexadecimal digits"
+                    )
                 }
-                escaped = false
-            } else if char == "\\" {
-                escaped = true
-            } else {
-                result.append(char)
+                var code: UInt32 = 0
+                for offset in 0 ..< 4 {
+                    guard let digit = scalars[index + offset].hexDigitValue else {
+                        throw TOONDecodingError.invalidEscapeSequence(
+                            "A \\u escape needs four hexadecimal digits"
+                        )
+                    }
+                    code = code << 4 | UInt32(digit)
+                }
+                index += 4
+
+                guard let decoded = Unicode.Scalar(code) else {
+                    throw TOONDecodingError.invalidEscapeSequence(
+                        "A surrogate code point is not allowed in a \\u escape"
+                    )
+                }
+                result.append(decoded)
+            default:
+                throw TOONDecodingError.invalidEscapeSequence(
+                    "Invalid escape sequence: \\\(marker)"
+                )
             }
         }
 
-        if escaped {
-            throw TOONDecodingError.invalidEscapeSequence("Trailing backslash in string")
-        }
-
-        return result
+        return String(result)
     }
 
     // MARK: - Path Expansion
@@ -2169,4 +2206,16 @@ private extension Substring {
 extension Character {
     /// `true` for U+0030 to U+0039 only.
     fileprivate var isASCIIDigit: Bool { self >= "0" && self <= "9" }
+}
+
+extension Unicode.Scalar {
+    /// The value of an ASCII hexadecimal digit, or `nil`.
+    fileprivate var hexDigitValue: Int? {
+        switch self {
+        case "0" ... "9": return Int(value - 0x30)
+        case "a" ... "f": return Int(value - 0x61) + 10
+        case "A" ... "F": return Int(value - 0x41) + 10
+        default: return nil
+        }
+    }
 }

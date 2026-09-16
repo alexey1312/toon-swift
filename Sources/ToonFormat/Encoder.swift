@@ -1630,28 +1630,89 @@ private let numberFormatter: NumberFormatter = {
 // MARK: - String Extensions
 
 private extension String {
+    /// Escapes a string for a quoted span, per TOON specification 7.1.
+    ///
+    /// The table has five short forms. Every other character in U+0000 through
+    /// U+001F takes the `\uXXXX` form, which the specification requires.
     var escaped: String {
-        return
-            replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "\\r")
-            .replacingOccurrences(of: "\t", with: "\\t")
+        var result = String.UnicodeScalarView()
+        for scalar in unicodeScalars {
+            switch scalar {
+            case "\\": result.append(contentsOf: "\\\\".unicodeScalars)
+            case "\"": result.append(contentsOf: "\\\"".unicodeScalars)
+            case "\n": result.append(contentsOf: "\\n".unicodeScalars)
+            case "\r": result.append(contentsOf: "\\r".unicodeScalars)
+            case "\t": result.append(contentsOf: "\\t".unicodeScalars)
+            default:
+                if scalar.value <= 0x1F {
+                    let hex = String(format: "%04X", scalar.value)
+                    result.append(contentsOf: "\\u\(hex)".unicodeScalars)
+                } else {
+                    result.append(scalar)
+                }
+            }
+        }
+        return String(result)
     }
 
+    /// Whether the string matches `^[+-]?[0-9]+(\.[0-9]+)?(e[+-]?[0-9]+)?$`
+    /// with ASCII digits, per specification 7.2.
+    ///
+    /// This is wider than the decoder grammar of section 4: it also covers
+    /// `+1` and `05`, which decode as strings. An encoder quotes them so that
+    /// the value cannot read as a number.
     var isNumericLike: Bool {
-        // Match numbers like: 42, -3.14, 1e-6, 05, etc.
-        return range(
-            of: #"^-?\d+(?:\.\d+)?(?:e[+-]?\d+)?$"#,
-            options: [.regularExpression, .caseInsensitive]
-        ) != nil
-            || range(of: #"^0\d+$"#, options: .regularExpression) != nil
+        let scalars = Array(unicodeScalars)
+        var index = 0
+
+        if index < scalars.count, scalars[index] == "+" || scalars[index] == "-" {
+            index += 1
+        }
+
+        let integerStart = index
+        while index < scalars.count, scalars[index].isASCIIDigit {
+            index += 1
+        }
+        guard index > integerStart else { return false }
+
+        if index < scalars.count, scalars[index] == "." {
+            index += 1
+            let fractionStart = index
+            while index < scalars.count, scalars[index].isASCIIDigit {
+                index += 1
+            }
+            guard index > fractionStart else { return false }
+        }
+
+        if index < scalars.count, scalars[index] == "e" || scalars[index] == "E" {
+            index += 1
+            if index < scalars.count, scalars[index] == "+" || scalars[index] == "-" {
+                index += 1
+            }
+            let exponentStart = index
+            while index < scalars.count, scalars[index].isASCIIDigit {
+                index += 1
+            }
+            guard index > exponentStart else { return false }
+        }
+
+        return index == scalars.count
     }
 
+    /// Whether the string starts or ends with U+0020 or U+0009.
+    ///
+    /// Specification 7.2 names exactly those two. CharacterSet.whitespaces
+    /// also holds every Unicode space separator, and section 12 states that
+    /// such a character is part of the token.
     var isPaddedWithWhitespace: Bool {
-        return self != trimmingCharacters(in: .whitespaces)
+        guard let first = unicodeScalars.first, let last = unicodeScalars.last else {
+            return false
+        }
+        let isPad = { (scalar: Unicode.Scalar) in scalar == " " || scalar == "\t" }
+        return isPad(first) || isPad(last)
     }
 
+    /// Whether the string may appear without quotes, per specification 7.2.
     func isSafeUnquoted(delimiter: String = ",") -> Bool {
         if isEmpty {
             return false
@@ -1669,49 +1730,68 @@ private extension String {
             return false
         }
 
-        // Check for colon (always structural)
-        if contains(":") {
-            return false
+        for scalar in unicodeScalars {
+            switch scalar {
+            case ":", "\"", "\\", "[", "]", "{", "}":
+                return false
+            default:
+                if scalar.value <= 0x1F {
+                    return false
+                }
+            }
         }
 
-        // Check for quotes and backslash (always need escaping)
-        if contains("\"") || contains("\\") {
-            return false
-        }
-
-        // Check for brackets and braces (always structural)
-        if range(of: #"[\[\]{}]"#, options: .regularExpression) != nil {
-            return false
-        }
-
-        // Check for control characters (newline, carriage return, tab - always need quoting/escaping)
-        if range(of: #"[\n\r\t]"#, options: .regularExpression) != nil {
-            return false
-        }
-
-        // Check for the active delimiter
         if contains(delimiter) {
             return false
         }
 
-        // Check for hyphen at start (list marker)
-        if hasPrefix("-") {
+        // A hyphen at position 0 reads as the list marker, and a number sign
+        // at position 0 reads as a comment line (section 5.1).
+        if hasPrefix("-") || hasPrefix("#") {
+            return false
+        }
+
+        // Stricter than the specification, which obliges only a decoder to
+        // strip a leading byte-order mark (section 12). Without this, a root
+        // string that starts with U+FEFF loses its first character on a round
+        // trip. Reported upstream as toon-format/toon issue 339.
+        if unicodeScalars.first == "\u{FEFF}" {
             return false
         }
 
         return true
     }
 
+    /// Whether the key may appear without quotes.
+    ///
+    /// Specification 7.3 gives the pattern `^[A-Za-z_][A-Za-z0-9_.]*$`. The
+    /// `\w` class of NSRegularExpression covers every Unicode letter, so the
+    /// old pattern left a key such as `naive` with a diaeresis unquoted,
+    /// against section 16.
     var isValidUnquotedKey: Bool {
-        // Match pattern: starts with letter or underscore, followed by word characters or dots
-        return range(of: #"^[A-Z_][\w.]*$"#, options: [.regularExpression, .caseInsensitive])
-            != nil
+        var scalars = Array(unicodeScalars).makeIterator()
+        guard let first = scalars.next(), first.isASCIILetter || first == "_" else {
+            return false
+        }
+        while let scalar = scalars.next() {
+            guard scalar.isASCIILetter || scalar.isASCIIDigit || scalar == "_" || scalar == "."
+            else {
+                return false
+            }
+        }
+        return true
     }
 
+    /// A single segment of a folded key path: the pattern of specification
+    /// 7.3 without the dot.
     var isValidIdentifierSegment: Bool {
-        // Match pattern for a single identifier segment (no dots)
-        // Must start with letter or underscore, followed by word characters
-        return range(of: #"^[A-Z_]\w*$"#, options: [.regularExpression, .caseInsensitive])
-            != nil
+        !isEmpty && !contains(".") && isValidUnquotedKey
+    }
+}
+
+extension Unicode.Scalar {
+    /// `true` for an ASCII letter only.
+    fileprivate var isASCIILetter: Bool {
+        (self >= "A" && self <= "Z") || (self >= "a" && self <= "z")
     }
 }
