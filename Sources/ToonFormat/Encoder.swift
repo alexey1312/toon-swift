@@ -804,12 +804,7 @@ public final class TOONEncoder {
                 }
             }
 
-            if let formatted = numberFormatter.string(from: NSNumber(value: doubleValue)) {
-                return formatted
-            }
-
-            // Fallback to string representation
-            return String(doubleValue)
+            return canonicalDecimal(doubleValue)
         case .string(let stringValue):
             return encodeStringLiteral(stringValue, delimiter: delimiter)
         case .date(let date):
@@ -1633,15 +1628,41 @@ extension TOONEncoder {
 
 // Shared number formatter that's used to avoid scientific notation
 // and format numbers in canonical decimal form (no trailing zeros)
-private let numberFormatter: NumberFormatter = {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .decimal
-    formatter.usesGroupingSeparator = false
-    formatter.maximumFractionDigits = 15
-    formatter.minimumFractionDigits = 0  // Prevents trailing zeros
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    return formatter
-}()
+/// Renders a finite `Double` in the canonical decimal form of TOON
+/// specification 2.
+///
+/// The description of a `Double` in Swift is the shortest text that reads
+/// back as the same value, which is what section 2 asks for: an encoder must
+/// emit enough precision that decoding its output returns the input. The
+/// earlier code used a NumberFormatter capped at 15 fraction digits, which
+/// rounded 0.3333333333333333 to fifteen threes and turned 1e-16 into 0.
+///
+/// Swift writes a whole value as "1.0" and uses an exponent outside a range
+/// of its own, so the two cases are adjusted here. Section 2 asks for a plain
+/// decimal while the magnitude is zero, or at least 1e-6 and below 1e21, and
+/// allows the exponent form outside that band.
+private func canonicalDecimal(_ value: Double) -> String {
+    let magnitude = abs(value)
+    let usesPlainForm = magnitude == 0 || (magnitude >= 1e-6 && magnitude < 1e21)
+
+    guard usesPlainForm else {
+        // Outside the band, section 2 allows the exponent form, and the
+        // description of a Double is already the shortest text that reads
+        // back as the same value.
+        return String(value)
+    }
+
+    // The shortest fixed-point text that reads back as the same value. Trying
+    // the digits in order means the result never carries a trailing zero.
+    for digits in 0 ... 25 {
+        let text = String(format: "%.\(digits)f", value)
+        if Double(text) == value {
+            return text
+        }
+    }
+
+    return String(value)
+}
 
 // MARK: - String Extensions
 

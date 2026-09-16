@@ -34,7 +34,5 @@ enum FixtureExpectations {
             "§9.4 encodes root-level array mixing primitive, object, and array of objects in list form",
         "encode/objects-keyed.json#11":
             "§10 emits a keyed header on the hyphen line when it is the first field of a list item",
-        "encode/primitives.json#37":
-            "§2 encodes repeating decimal with full precision",
     ]
 }
