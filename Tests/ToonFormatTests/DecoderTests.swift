@@ -1093,6 +1093,10 @@ struct DecoderTests {
         #expect(result.user.profile.name == "Ada")
     }
 
+    // Path expansion left the specification in 4.0, so the option is
+    // deprecated and its default is now .disabled. These tests set it
+    // explicitly, and go away with the option in 2.0.
+    @available(*, deprecated)
     @Test func pathExpansionAutomatic() async throws {
         struct NestedObject: Codable, Equatable {
             struct User: Codable, Equatable {
@@ -1107,8 +1111,10 @@ struct DecoderTests {
         }
 
         let decoder = TOONDecoder()
-        // .automatic is the default
-        #expect(decoder.expandPaths == .automatic)
+        // .disabled is the default since specification 4.0 removed the
+        // feature, so the test asks for the old behaviour explicitly.
+        #expect(decoder.expandPaths == .disabled)
+        decoder.expandPaths = .automatic
 
         let toon = "user.profile.name: Ada"
         let data = toon.data(using: .utf8)!
@@ -1116,6 +1122,7 @@ struct DecoderTests {
         #expect(result.user.profile.name == "Ada")
     }
 
+    @available(*, deprecated)
     @Test func pathExpansionAutomaticFallbackOnCollision() async throws {
         struct CollisionObject: Codable, Equatable {
             let user: String
@@ -1140,6 +1147,7 @@ struct DecoderTests {
         #expect(result.userName == "Lovelace")
     }
 
+    @available(*, deprecated)
     @Test func pathExpansionSafeCollisionError() async throws {
         struct CollisionObject: Codable {
             let user: String

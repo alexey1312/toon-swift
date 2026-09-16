@@ -36,10 +36,6 @@ enum FixtureExpectations {
             "§6 falls through to a key-value line on a header delimiter mismatch",
         "decode/objects-keyed.json#18":
             "§9.5 skips an entry-depth line without a colon in non-strict mode",
-        "decode/objects.json#34":
-            "§8 parses dotted keys as identifiers",
-        "decode/root-form.json#4":
-            "§5 parses literal [] at root as empty array",
         "decode/root-form.json#5":
             "§5 throws on trailing content after a root array",
         "decode/root-form.json#6":
@@ -52,20 +48,10 @@ enum FixtureExpectations {
             "§14.2 throws on unterminated string",
         "decode/whitespace.json#14":
             "§12 treats a hyphen followed by trailing spaces as the bare marker",
-        "encode/arrays-nested.json#10":
-            "§8 encodes complex nested structure",
         "encode/arrays-nested.json#14":
             "§9.3 uses list form for a tabular-eligible array in list-item position",
         "encode/arrays-nested.json#7":
             "§9.4 encodes root-level array mixing primitive, object, and array of objects in list form",
-        "encode/arrays-nested.json#9":
-            "§9.1 encodes empty root-level array",
-        "encode/arrays-objects.json#9":
-            "§10 encodes objects with empty arrays in list form",
-        "encode/arrays-primitive.json#3":
-            "§9.1 encodes empty arrays",
-        "encode/arrays-primitive.json#5":
-            "§9.1 encodes empty string keys for empty arrays",
         "encode/objects-keyed.json#11":
             "§10 emits a keyed header on the hyphen line when it is the first field of a list item",
         "encode/objects.json#27":

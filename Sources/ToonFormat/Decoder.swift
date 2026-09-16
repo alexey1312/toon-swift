@@ -26,7 +26,24 @@ public final class TOONDecoder {
     ///   profile:
     ///     name: John
     /// ```
-    public var expandPaths: PathExpansion = .automatic
+    @available(
+        *,
+        deprecated,
+        message: """
+            TOON specification 4.0 removed path expansion. A dotted key is one \
+            literal key. The option still works, and its default is now \
+            .disabled so that the decoder follows specification 4.1. It is \
+            removed in 2.0.
+            """
+    )
+    public var expandPaths: PathExpansion {
+        get { storedExpandPaths }
+        set { storedExpandPaths = newValue }
+    }
+
+    /// Backing storage, so that the library can read the option without
+    /// raising its own deprecation warning.
+    private var storedExpandPaths: PathExpansion = .disabled
 
     /// The number of spaces of one indentation level.
     ///
@@ -185,7 +202,7 @@ public final class TOONDecoder {
             text: text,
             indentSize: indentSize,
             strict: strict,
-            expandPaths: expandPaths,
+            expandPaths: storedExpandPaths,
             limits: limits
         )
         let value = try parser.parse()
@@ -293,6 +310,12 @@ private final class Parser {
         // Detect root form
         let firstNonEmptyLine = nonEmptyLines[0].element
         let firstContent = trimIndentation(firstNonEmptyLine).content
+
+        // Specification 4 gives the literal token `[]` at the root the meaning
+        // of an empty array.
+        if firstContent == "[]", nonEmptyLines.count == 1 {
+            return .array([])
+        }
 
         // Root array: first line is a valid array header WITHOUT a key (e.g., "[3]:" not "items[3]:")
         // An array header without key starts with "[" immediately

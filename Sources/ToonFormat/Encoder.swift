@@ -500,13 +500,11 @@ public final class TOONEncoder {
     // MARK: - Array Encoding
 
     private func encodeArray(key: String?, array: [Value], output: inout [String], depth: Int) {
+        // Specification 9.1 gives an empty array the canonical form `key: []`
+        // at a field and `[]` at the root.
         if array.isEmpty {
-            let header = formatHeader(
-                length: 0,
-                key: key,
-                delimiter: delimiter.rawValue
-            )
-            write(depth: depth, content: header, to: &output)
+            let line = key.map { "\(encodeKey($0)): []" } ?? "[]"
+            write(depth: depth, content: line, to: &output)
             return
         }
 

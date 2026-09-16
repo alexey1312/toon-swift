@@ -585,7 +585,7 @@ struct EncoderTests {
 
         let emptyObj = EmptyArrayObject(items: [])
         let emptyResult = String(data: try encoder.encode(emptyObj), encoding: .utf8)!
-        #expect(emptyResult.contains("items[0]:"))
+        #expect(emptyResult.contains("items: []"))
     }
 
     @Test func emptyStringInArrays() async throws {
@@ -952,7 +952,7 @@ struct EncoderTests {
         )!
         #expect(emptyArrayInObjectResult.contains("items[1]:"))
         #expect(emptyArrayInObjectResult.contains("  - name: test"))
-        #expect(emptyArrayInObjectResult.contains("    data[0]:"))
+        #expect(emptyArrayInObjectResult.contains("    data: []"))
     }
 
     @Test func nestedTabularArraysFirstFieldOnHyphenLine() async throws {
@@ -1211,7 +1211,7 @@ struct EncoderTests {
     @Test func rootEmptyArray() async throws {
         let emptyArray: [String] = []
         let emptyResult = String(data: try encoder.encode(emptyArray), encoding: .utf8)!
-        #expect(emptyResult.contains("[0]:"))
+        #expect(emptyResult.contains("[]"))
     }
 
     @Test func rootArrayOfArrays() async throws {
@@ -1252,7 +1252,7 @@ struct EncoderTests {
         #expect(result.contains("  name: Ada"))
         #expect(result.contains("  tags[2]: reading,gaming"))
         #expect(result.contains("  active: true"))
-        #expect(result.contains("  prefs[0]:"))
+        #expect(result.contains("  prefs: []"))
     }
 
     // MARK: - Delimiter Options
