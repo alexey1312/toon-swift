@@ -56,6 +56,7 @@ struct FixtureTests {
 
             let decoder = TOONDecoder()
             decoder.indentSize = fixture.options.indentSize
+            decoder.strict = fixture.options.strict
             let data = Data(source.utf8)
 
             guard !fixture.shouldError else {

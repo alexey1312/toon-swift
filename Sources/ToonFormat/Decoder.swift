@@ -43,6 +43,19 @@ public final class TOONDecoder {
     /// ```
     public var indentSize: Int = 2
 
+    /// Whether to enforce the strict-mode rules of TOON specification 14.
+    ///
+    /// Specification 13.2 defines this option, with a default of `true`.
+    ///
+    /// In strict mode a document must satisfy every rule of section 14: the
+    /// declared counts must match, a field name must not repeat, and the
+    /// indentation must be exact. In non-strict mode a decoder resolves what
+    /// it can, for example a repeated key by last write wins (section 14.3).
+    ///
+    /// Set this property to `false` to accept a document that an earlier
+    /// release accepted but section 14 rejects.
+    public var strict: Bool = true
+
     /// Limits for decoding to prevent resource exhaustion.
     ///
     /// Use this to protect against malicious or malformed input when parsing untrusted data.
@@ -171,6 +184,7 @@ public final class TOONDecoder {
         let parser = Parser(
             text: text,
             indentSize: indentSize,
+            strict: strict,
             expandPaths: expandPaths,
             limits: limits
         )
@@ -236,6 +250,7 @@ public enum TOONDecodingError: Error, Equatable {
 private final class Parser {
     private let lines: [String]
     private let indentSize: Int
+    private let strict: Bool
     private let sourceLineNumbers: [Int]
     private let expandPaths: TOONDecoder.PathExpansion
     private let limits: TOONDecoder.DecodingLimits
@@ -244,6 +259,7 @@ private final class Parser {
     init(
         text: String,
         indentSize: Int,
+        strict: Bool,
         expandPaths: TOONDecoder.PathExpansion,
         limits: TOONDecoder.DecodingLimits
     ) {
@@ -251,6 +267,7 @@ private final class Parser {
         lines = document.lines
         sourceLineNumbers = document.sourceLineNumbers
         self.indentSize = indentSize
+        self.strict = strict
         self.expandPaths = expandPaths
         self.limits = limits
     }
@@ -558,7 +575,7 @@ private final class Parser {
         let key: String?
         let count: Int
         let delimiter: String
-        let fields: [String]?
+        let fields: [FieldNode]?
     }
 
     private func parseArrayHeader(_ content: String) throws -> ArrayHeader {
@@ -621,14 +638,27 @@ private final class Parser {
         remaining = remaining.dropFirst()
 
         // Check for fields
-        var fields: [String]? = nil
+        var fields: [FieldNode]? = nil
         if remaining.first == "{" {
             remaining = remaining.dropFirst()
-            guard let closeBrace = remaining.firstIndex(of: "}") else {
-                throw TOONDecodingError.invalidHeader("Unterminated fields in array header: \(content)")
+            // The matching brace, not the first one: a nested field group of
+            // specification 9.3 closes its own braces inside the list.
+            guard let closeBrace = findMatchingBrace(in: remaining) else {
+                throw TOONDecodingError.invalidHeader(
+                    "Unterminated fields in array header: \(content)"
+                )
             }
             let fieldsStr = String(remaining[..<closeBrace])
-            fields = try parseFieldsList(fieldsStr, delimiter: delimiter)
+            let parsed = try parseFieldsList(fieldsStr, delimiter: delimiter)
+            // Specification 14.2 makes a repeated name a strict-mode error.
+            // Names repeated at different levels of nesting are not
+            // duplicates, which firstDuplicateName() accounts for.
+            if strict, let duplicate = parsed.firstDuplicateName() {
+                throw TOONDecodingError.invalidHeader(
+                    "Duplicate field name '\(duplicate)' in array header: \(content)"
+                )
+            }
+            fields = parsed
             remaining = remaining[remaining.index(after: closeBrace)...]
         }
 
@@ -664,11 +694,49 @@ private final class Parser {
         return nil
     }
 
-    private func parseFieldsList(_ fieldsStr: String, delimiter: String) throws -> [String] {
-        var fields: [String] = []
+    /// The position of the brace that closes the field list that starts after
+    /// the opening brace. A brace inside a quoted name is content.
+    private func findMatchingBrace(in text: Substring) -> Substring.Index? {
+        var depth = 0
+        var inQuotes = false
+        var escaped = false
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            let char = text[index]
+            if escaped {
+                escaped = false
+            } else if char == "\\" {
+                escaped = true
+            } else if char == "\"" {
+                inQuotes.toggle()
+            } else if !inQuotes {
+                if char == "{" {
+                    depth += 1
+                } else if char == "}" {
+                    if depth == 0 {
+                        return index
+                    }
+                    depth -= 1
+                }
+            }
+            index = text.index(after: index)
+        }
+
+        return nil
+    }
+
+    /// Splits a field list, and recurses into a nested field group.
+    ///
+    /// Specification 9.3 gives a field the shape `name` or `name{sub,sub}`.
+    /// The separator inside a group is the active delimiter, the same as
+    /// outside it. A brace or a delimiter inside a quoted name is content.
+    private func parseFieldsList(_ fieldsStr: String, delimiter: String) throws -> [FieldNode] {
+        var fields: [FieldNode] = []
         var current = ""
         var inQuotes = false
         var escaped = false
+        var braceDepth = 0
 
         for char in fieldsStr {
             if escaped {
@@ -689,20 +757,87 @@ private final class Parser {
                 continue
             }
 
-            if !inQuotes, String(char) == delimiter {
-                try fields.append(parseFieldName(current))
-                current = ""
-                continue
+            if !inQuotes {
+                if char == "{" {
+                    braceDepth += 1
+                } else if char == "}" {
+                    braceDepth -= 1
+                    guard braceDepth >= 0 else {
+                        throw TOONDecodingError.invalidHeader(
+                            "Unbalanced '}' in the field list: \(fieldsStr)"
+                        )
+                    }
+                }
+
+                if braceDepth == 0, String(char) == delimiter {
+                    try fields.append(parseField(current, delimiter: delimiter))
+                    current = ""
+                    continue
+                }
             }
 
             current.append(char)
         }
 
+        guard braceDepth == 0 else {
+            throw TOONDecodingError.invalidHeader(
+                "Unterminated field group in the field list: \(fieldsStr)"
+            )
+        }
+
         if !current.isEmpty {
-            try fields.append(parseFieldName(current))
+            try fields.append(parseField(current, delimiter: delimiter))
         }
 
         return fields
+    }
+
+    /// Reads one entry of a field list, which may carry a nested group.
+    private func parseField(_ field: String, delimiter: String) throws -> FieldNode {
+        let trimmed = field.trimmingCharacters(in: .whitespaces)
+
+        guard let braceIndex = indexOfGroupBrace(in: trimmed) else {
+            return FieldNode(name: try parseFieldName(trimmed))
+        }
+
+        guard trimmed.hasSuffix("}") else {
+            throw TOONDecodingError.invalidHeader("Unterminated field group in: \(field)")
+        }
+
+        let name = String(trimmed[..<braceIndex])
+        let innerStart = trimmed.index(after: braceIndex)
+        let inner = String(trimmed[innerStart ..< trimmed.index(before: trimmed.endIndex)])
+
+        let children = try parseFieldsList(inner, delimiter: delimiter)
+        guard !children.isEmpty else {
+            throw TOONDecodingError.invalidHeader("Empty field group in: \(field)")
+        }
+
+        return FieldNode(name: try parseFieldName(name), children: children)
+    }
+
+    /// The position of the brace that opens a nested group, skipping a brace
+    /// that sits inside a quoted name.
+    private func indexOfGroupBrace(in field: String) -> String.Index? {
+        var inQuotes = false
+        var escaped = false
+        var index = field.startIndex
+
+        while index < field.endIndex {
+            let char = field[index]
+            if escaped {
+                escaped = false
+            } else if char == "\\" {
+                escaped = true
+            } else if char == "\"" {
+                inQuotes.toggle()
+            } else if char == "{", !inQuotes {
+                return index
+            }
+            index = field.index(after: index)
+        }
+
+        return nil
     }
 
     private func parseFieldName(_ field: String) throws -> String {
@@ -712,6 +847,41 @@ private final class Parser {
             return try unescapeString(inner)
         }
         return trimmed
+    }
+
+    /// Builds one row object by walking the field tree against the cells.
+    ///
+    /// Specification 9.3 maps the cells to the leaves in depth-first order.
+    /// Specification 14.1 states for non-strict mode that a leaf with no
+    /// remaining cell is absent from the object, and is not null, and that a
+    /// surplus cell contributes nothing.
+    private func materializeRow(fields: [FieldNode], cells: [Value], cursor: inout Int) -> Value {
+        var values: [String: Value] = [:]
+        var keyOrder: [String] = []
+
+        for field in fields {
+            let value: Value
+            if let children = field.children {
+                let before = cursor
+                let nested = materializeRow(fields: children, cells: cells, cursor: &cursor)
+                if cursor == before, case let .object(inner, _) = nested, inner.isEmpty {
+                    continue
+                }
+                value = nested
+            } else {
+                guard cursor < cells.count else { continue }
+                value = cells[cursor]
+                cursor += 1
+            }
+
+            // Specification 14.3 resolves a duplicate name by last write wins.
+            // The name keeps the position of its first appearance.
+            if values.updateValue(value, forKey: field.name) == nil {
+                keyOrder.append(field.name)
+            }
+        }
+
+        return .object(values, keyOrder: keyOrder)
     }
 
     private func parseArrayAtCurrentLine(depth: Int, key _: String?) throws -> Value {
@@ -788,8 +958,12 @@ private final class Parser {
         return .array(items)
     }
 
-    private func parseTabularRows(count: Int, fields: [String], delimiter: String, atDepth depth: Int) throws -> [Value]
-    {
+    private func parseTabularRows(
+        count: Int,
+        fields: [FieldNode],
+        delimiter: String,
+        atDepth depth: Int
+    ) throws -> [Value] {
         var rows: [Value] = []
         let expectedDepth = depth + 1
 
@@ -813,22 +987,21 @@ private final class Parser {
                 )
             }
 
-            let values = try parseDelimitedValues(String(content), delimiter: delimiter)
+            let cells = try parseDelimitedValues(String(content), delimiter: delimiter)
 
-            if values.count != fields.count {
+            // The width of a row is the number of leaves, not the number of
+            // entries of the field list: a nested group spans several cells.
+            let width = fields.leafCount
+            if cells.count != width {
                 throw TOONDecodingError.fieldCountMismatch(
-                    expected: fields.count,
-                    actual: values.count,
+                    expected: width,
+                    actual: cells.count,
                     line: sourceLine(currentLine)
                 )
             }
 
-            // Build object from fields and values
-            var objectValues: [String: Value] = [:]
-            for (i, field) in fields.enumerated() {
-                objectValues[field] = values[i]
-            }
-            rows.append(.object(objectValues, keyOrder: fields))
+            var cursor = 0
+            rows.append(materializeRow(fields: fields, cells: cells, cursor: &cursor))
         }
 
         return rows

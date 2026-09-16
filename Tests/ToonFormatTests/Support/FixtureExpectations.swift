@@ -36,22 +36,8 @@ enum FixtureExpectations {
             "§9.1 decodes canonical empty array with empty-string key",
         "decode/arrays-primitive.json#7":
             "§9.1 parses strings with delimiters in arrays",
-        "decode/arrays-tabular.json#10":
-            "§9.3 parses nested field groups recursively without a depth cap",
-        "decode/arrays-tabular.json#11":
-            "§9.3 parses nested field groups with the pipe delimiter",
-        "decode/arrays-tabular.json#12":
-            "§6 matches braces outside quoted names only when parsing field entries",
-        "decode/arrays-tabular.json#13":
-            "§9.3 parses quoted subfield names inside nested field groups",
-        "decode/arrays-tabular.json#15":
-            "§14.3 applies LWW when a bare field and a nested group share a name in non-strict mode",
         "decode/arrays-tabular.json#17":
             "§14.1 keeps every row when the count mismatches in non-strict mode",
-        "decode/arrays-tabular.json#8":
-            "§9.3 parses nested field groups into nested objects",
-        "decode/arrays-tabular.json#9":
-            "§9.3 parses sibling nested field groups by depth-first cell assignment",
         "decode/blank-lines.json#0":
             "§14.2 throws on blank line inside list array",
         "decode/blank-lines.json#1":
