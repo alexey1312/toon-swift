@@ -503,7 +503,7 @@ private final class Parser {
             return (key, nestedValue)
         } else {
             // Inline value
-            let value = try parsePrimitiveValue(valuePart)
+            let value = try parseValueInValuePosition(valuePart)
             return (key, value)
         }
     }
@@ -1276,7 +1276,7 @@ private final class Parser {
                     objectValues[arrayKey] = array
                 } else {
                     // Inline primitive value
-                    objectValues[key] = try parsePrimitiveValue(valuePart)
+                    objectValues[key] = try parseValueInValuePosition(valuePart)
                 }
             }
 
@@ -1357,6 +1357,20 @@ private final class Parser {
         }
 
         return values
+    }
+
+    /// Reads a value that sits after a key-value colon, at the root, or on a
+    /// list-item line.
+    ///
+    /// Specification 4 gives the literal token `[]` in those three positions
+    /// the meaning of an empty array. Inside an inline array or a tabular
+    /// cell the same token is the string `[]`, so only this entry point
+    /// recognizes it.
+    private func parseValueInValuePosition(_ content: String) throws -> Value {
+        if content.trimmingCharacters(in: .whitespaces) == "[]" {
+            return .array([])
+        }
+        return try parsePrimitiveValue(content)
     }
 
     private func parsePrimitiveValue(_ content: String) throws -> Value {

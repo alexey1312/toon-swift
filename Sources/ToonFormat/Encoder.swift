@@ -462,7 +462,7 @@ public final class TOONEncoder {
                         }
                     case .array(let innerArray):
                         if innerArray.allSatisfy({ $0.isPrimitive }) {
-                            let inline = formatInlineArray(values: innerArray, key: nil)
+                            let inline = formatInlineArray(values: innerArray, key: nil, inListItem: true)
                             write(
                                 depth: depth + 1,
                                 content: "- \(inline)",
@@ -578,7 +578,7 @@ public final class TOONEncoder {
 
         for arrayValue in values {
             guard let innerArray = arrayValue.arrayValue else { continue }
-            let inline = formatInlineArray(values: innerArray, key: nil)
+            let inline = formatInlineArray(values: innerArray, key: nil, inListItem: true)
             write(depth: depth + 1, content: "- \(inline)", to: &output)
         }
     }
@@ -623,7 +623,7 @@ public final class TOONEncoder {
 
             case .array(let array):
                 if array.allSatisfy({ $0.isPrimitive }) {
-                    let inline = formatInlineArray(values: array, key: nil)
+                    let inline = formatInlineArray(values: array, key: nil, inListItem: true)
                     write(
                         depth: depth + 1,
                         content: "- \(inline)",
@@ -897,17 +897,35 @@ public final class TOONEncoder {
 
     // MARK: - Formatting Helpers
 
-    private func formatInlineArray(values: [Value], key: String?) -> String {
+    /// Renders an inline array.
+    ///
+    /// - Parameter inListItem: `true` when the array is an inner array on a
+    ///   hyphen line. Specification 9.2 keeps the `[0]:` form there, while
+    ///   section 9.1 gives every other position the canonical empty form.
+    private func formatInlineArray(
+        values: [Value],
+        key: String?,
+        inListItem: Bool = false
+    ) -> String {
+        // Specification 9.1 gives an empty array the canonical form `key: []`
+        // at a field and `[]` at the root. The old `key[0]:` form is still
+        // accepted on decode, but an encoder must not emit it.
+        if values.isEmpty, !inListItem {
+            guard let key = key else { return "[]" }
+            return "\(encodeKey(key)): []"
+        }
+
         let header = formatHeader(
             length: values.count,
             key: key,
             delimiter: delimiter.rawValue
         )
-        let joinedValue = joinEncodedValues(values, delimiter: delimiter.rawValue)
 
         if values.isEmpty {
             return header
         }
+
+        let joinedValue = joinEncodedValues(values, delimiter: delimiter.rawValue)
         return "\(header) \(joinedValue)"
     }
 

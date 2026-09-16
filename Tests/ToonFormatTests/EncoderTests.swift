@@ -1003,9 +1003,10 @@ struct EncoderTests {
             data: try encoder.encode(emptyArrayFirstObj),
             encoding: .utf8
         )!
-        #expect(emptyArrayFirstResult.contains("items[1]:"))
-        #expect(emptyArrayFirstResult.contains("  - data[0]:"))
-        #expect(emptyArrayFirstResult.contains("    name: x"))
+        // Specification 9.1 gives an empty array the canonical form `key: []`
+        // wherever it sits at a field, the hyphen line included. The `[0]:`
+        // form stays only for an inner array of section 9.2, which has no key.
+        #expect(emptyArrayFirstResult == "items[1]:\n  - data: []\n    name: x")
     }
 
     @Test func listFormatWithArrayOfArrays() async throws {

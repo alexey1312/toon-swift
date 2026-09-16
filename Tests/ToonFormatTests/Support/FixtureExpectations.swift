@@ -28,12 +28,6 @@ enum FixtureExpectations {
             "§9.2 parses arrays of arrays within objects",
         "decode/arrays-nested.json#9":
             "§9.2 parses quoted strings and mixed lengths in nested arrays",
-        "decode/arrays-primitive.json#16":
-            "§9.1 decodes canonical empty array key: []",
-        "decode/arrays-primitive.json#17":
-            "§9.1 decodes canonical empty array with quoted key",
-        "decode/arrays-primitive.json#18":
-            "§9.1 decodes canonical empty array with empty-string key",
         "decode/arrays-primitive.json#7":
             "§9.1 parses strings with delimiters in arrays",
         "decode/arrays-tabular.json#17":
@@ -118,8 +112,6 @@ enum FixtureExpectations {
             "§10 uses canonical encoding for multi-field list-item objects with tabular arrays",
         "encode/arrays-objects.json#11":
             "§10 uses canonical encoding for single-field list-item tabular arrays",
-        "encode/arrays-objects.json#12":
-            "§10 places empty arrays on hyphen line when first",
         "encode/arrays-objects.json#4":
             "§10 uses list form for objects containing arrays of arrays",
         "encode/arrays-objects.json#5":
