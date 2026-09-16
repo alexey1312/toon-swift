@@ -11,8 +11,5 @@
 ///
 /// Regenerate this file with `Scripts/record-fixture-gaps.sh`.
 enum FixtureExpectations {
-    static let knownGaps: [String: String] = [
-        "decode/comments.json#13":
-            "§5.1 decodes tab-indented hash row as data in non-strict mode"
-    ]
+    static let knownGaps: [String: String] = [:]
 }

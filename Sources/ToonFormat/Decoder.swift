@@ -393,17 +393,34 @@ private final class Parser {
 
     // MARK: - Indentation Handling
 
+    /// Splits a line into its depth and its content.
+    ///
+    /// The depth uses the floor of the division, which is the leniency that
+    /// TOON specification 12 allows for an indentation that is not a multiple
+    /// of the indent size. Strict mode rejects such a line in the pre-pass.
+    ///
+    /// Specification 12 also allows a decoder to accept a tab in the
+    /// indentation outside strict mode, and requires the depth rule for a tab
+    /// to be documented: this decoder counts one tab as one level. Strict mode
+    /// rejects a tab in the pre-pass, so a tab reaches this point only in
+    /// non-strict mode.
     private func trimIndentation(_ line: String) -> (depth: Int, content: Substring) {
         var spaces = 0
+        var tabs = 0
         var index = line.startIndex
-        while index < line.endIndex, line[index] == " " {
-            spaces += 1
+
+        while index < line.endIndex {
+            if line[index] == " " {
+                spaces += 1
+            } else if line[index] == "\t" {
+                tabs += 1
+            } else {
+                break
+            }
             index = line.index(after: index)
         }
 
-        // The depth uses the floor of the division, which is the leniency that
-        // TOON specification 12 allows for a non-multiple indentation.
-        let depth = indentSize > 0 ? spaces / indentSize : 0
+        let depth = (indentSize > 0 ? spaces / indentSize : 0) + tabs
         return (depth, line[index...])
     }
 
