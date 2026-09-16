@@ -1140,10 +1140,13 @@ private final class Parser {
         let expectedDepth = depth + 1
         let width = fields.leafCount
 
-        for _ in 0 ..< header.count {
+        // Specification 14.1 states that a declared length never terminates or
+        // truncates a scope, so the loop reads to the end of the scope and
+        // checks the length afterwards.
+        while true {
             try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !keyOrder.isEmpty)
 
-            guard let line = peekLine() else { break }
+            guard let line = peekLine(), !line.isEmpty else { break }
 
             let (lineDepth, content) = trimIndentation(line)
             if lineDepth != expectedDepth {
@@ -1174,6 +1177,14 @@ private final class Parser {
             let entry = materializeRow(fields: fields, cells: cells, cursor: &cursor)
 
             try storeKey(entryKey, value: entry, into: &values, keyOrder: &keyOrder)
+        }
+
+        if strict, keyOrder.count != header.count {
+            throw TOONDecodingError.countMismatch(
+                expected: header.count,
+                actual: keyOrder.count,
+                line: sourceLine(currentLine)
+            )
         }
 
         return .object(values, keyOrder: keyOrder)
@@ -1211,25 +1222,28 @@ private final class Parser {
         var rows: [Value] = []
         let expectedDepth = depth + 1
 
-        for _ in 0 ..< count {
+        // Specification 14.1 states that a declared length never terminates or
+        // truncates a scope. The scope ends where the depth decreases, and the
+        // length is a check afterwards.
+        while true {
             try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !rows.isEmpty)
 
-            guard let line = consumeLine() else {
-                break
-            }
-
-            if line.isEmpty {
-                throw TOONDecodingError.unexpectedBlankLine(line: sourceLine(currentLine))
-            }
+            guard let line = peekLine(), !line.isEmpty else { break }
 
             let (lineDepth, content) = trimIndentation(line)
 
-            if lineDepth != expectedDepth {
+            if lineDepth < expectedDepth {
+                break
+            }
+
+            if lineDepth > expectedDepth {
                 throw TOONDecodingError.invalidIndentation(
                     line: sourceLine(currentLine),
                     message: "Expected indentation depth \(expectedDepth), got \(lineDepth)"
                 )
             }
+
+            _ = consumeLine()
 
             let cells = try parseDelimitedValues(String(content), delimiter: delimiter)
 
@@ -1248,6 +1262,14 @@ private final class Parser {
             rows.append(materializeRow(fields: fields, cells: cells, cursor: &cursor))
         }
 
+        if strict, rows.count != count {
+            throw TOONDecodingError.countMismatch(
+                expected: count,
+                actual: rows.count,
+                line: sourceLine(currentLine)
+            )
+        }
+
         return rows
     }
 
@@ -1255,36 +1277,44 @@ private final class Parser {
         var items: [Value] = []
         let expectedDepth = depth + 1
 
-        for _ in 0 ..< count {
+        // Specification 14.1 states that a declared length never terminates or
+        // truncates a scope, so the loop reads to the end of the scope and
+        // checks the length afterwards.
+        while true {
             try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !items.isEmpty)
 
-            guard let line = peekLine() else {
-                break
-            }
-
-            if line.isEmpty {
-                throw TOONDecodingError.unexpectedBlankLine(line: sourceLine(currentLine))
-            }
+            guard let line = peekLine(), !line.isEmpty else { break }
 
             let (lineDepth, content) = trimIndentation(line)
 
-            if lineDepth != expectedDepth {
+            if lineDepth < expectedDepth {
+                break
+            }
+
+            if lineDepth > expectedDepth {
                 throw TOONDecodingError.invalidIndentation(
                     line: sourceLine(currentLine),
                     message: "Expected indentation depth \(expectedDepth), got \(lineDepth)"
                 )
             }
 
+            // A line of the scope that is not a list item ends it. The bare
+            // marker of section 9.4 is a hyphen with nothing after it.
+            guard content.hasPrefix("- ") || content == "-" else { break }
+
             _ = consumeLine()
 
-            // Must start with "- "
-            guard content.hasPrefix("- ") else {
-                throw TOONDecodingError.invalidFormat("Expected list item starting with '- ' at line \(currentLine)")
-            }
-
-            let itemContent = String(content.dropFirst(2))
+            let itemContent = content.hasPrefix("- ") ? String(content.dropFirst(2)) : ""
             let item = try parseListItemContent(itemContent, atDepth: expectedDepth, delimiter: delimiter)
             items.append(item)
+        }
+
+        if strict, items.count != count {
+            throw TOONDecodingError.countMismatch(
+                expected: count,
+                actual: items.count,
+                line: sourceLine(currentLine)
+            )
         }
 
         return items
