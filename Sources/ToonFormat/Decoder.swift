@@ -335,7 +335,13 @@ private final class Parser {
     ///
     /// Specification 5 gives a document one root value. A line left over after
     /// the root array or the root keyed scope is trailing content.
+    ///
+    /// Specification 14.2 makes that an error in strict mode. A decoder
+    /// outside strict mode may ignore the line instead, and the reference
+    /// implementation does.
     private func rejectTrailingContentAfterRoot() throws {
+        guard strict else { return }
+
         while currentLine < lines.count {
             if !lines[currentLine].isEmpty {
                 throw TOONDecodingError.invalidFormat(

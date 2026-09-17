@@ -1501,6 +1501,26 @@ struct DecoderTests {
         #expect(fits.f == Float(0.1))
     }
 
+    /// Outside strict mode a line after the root value is ignored.
+    ///
+    /// Section 14.2 makes trailing content an error in strict mode only. The
+    /// check ran in both modes, so a document that the reference
+    /// implementation reads was rejected.
+    @Test func trailingContentIsIgnoredOutsideStrictMode() async throws {
+        let lenient = TOONDecoder()
+        lenient.strict = false
+
+        let value = try lenient.decode(
+            TOONValue.self,
+            from: Data("[2]: 1,2\nleftover: 1".utf8)
+        )
+        #expect(value == .array([.int(1), .int(2)]))
+
+        #expect(throws: TOONDecodingError.self) {
+            try self.decoder.decode(TOONValue.self, from: Data("[2]: 1,2\nleftover: 1".utf8))
+        }
+    }
+
     // MARK: - Error Line Numbers
 
     /// One error, and the line of the document that carries the defect.
