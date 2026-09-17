@@ -1332,6 +1332,51 @@ struct DecoderTests {
         }
     }
 
+    /// A defective array header inside a list item is an error in strict
+    /// mode, wherever the header sits.
+    ///
+    /// Three call sites used `try?`, so the error became `nil` and the line
+    /// then read as a key-value pair. The bracket segment went into the key.
+    /// The same defective header at the root was rejected, so the result
+    /// depended on the position in the document.
+    @Test func aDefectiveHeaderInAListItemIsAnErrorInStrictMode() async throws {
+        for source in ["a[1]:\n  - [2x]: p,q", "a[1]:\n  - nums[3x]: 1,2,3"] {
+            #expect(throws: TOONDecodingError.self) {
+                try self.decoder.decode(TOONValue.self, from: Data(source.utf8))
+            }
+        }
+    }
+
+    /// Outside strict mode the same header falls back to a key-value pair.
+    ///
+    /// Specification 6 allows that fallback, and the reference
+    /// implementation makes it.
+    @Test func aDefectiveHeaderInAListItemFallsBackOutsideStrictMode() async throws {
+        let lenient = TOONDecoder()
+        lenient.strict = false
+
+        let value = try lenient.decode(
+            TOONValue.self,
+            from: Data("a[1]:\n  - nums[3x]: 1,2,3".utf8)
+        )
+
+        let expected = TOONValue.object(
+            TOONObject([("a", .array([.object(TOONObject([("nums[3x]", .string("1,2,3"))]))]))])
+        )
+        #expect(value == expected)
+    }
+
+    /// A list-item line with a bracket but no colon stays a scalar.
+    ///
+    /// Section 5.2 needs a colon to end a header, so `- [1,2,3]` is the
+    /// string `[1,2,3]` and not a defective header.
+    @Test func aBracketLineWithNoColonStaysAScalar() async throws {
+        let value = try decoder.decode(TOONValue.self, from: Data("a[1]:\n  - [1,2,3]".utf8))
+
+        let expected = TOONValue.object(TOONObject([("a", .array([.string("[1,2,3]")]))]))
+        #expect(value == expected)
+    }
+
     // MARK: - Error Cases
 
     @Test func invalidEscapeSequence() async throws {

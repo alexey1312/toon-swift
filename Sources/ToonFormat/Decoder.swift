@@ -819,6 +819,28 @@ private final class Parser {
         return false
     }
 
+    /// Parses an array header, or returns `nil` when the line is not one.
+    ///
+    /// Specification 5.2 classifies a line as an array header when an
+    /// unquoted `[` comes before the first unquoted colon. A line of that
+    /// shape that does not parse is a defect, not a key-value pair.
+    /// Specification 6 lets a decoder outside strict mode fall back to a
+    /// key-value pair, so only strict mode reports the defect.
+    private func parseHeaderIfPresent(_ content: String) throws -> ArrayHeader? {
+        // A header always ends with a colon. A line such as `[1,2,3]` carries
+        // no colon, so specification 5.2 leaves it a scalar, not a defective
+        // header.
+        guard isArrayHeaderLine(content), headerColonIndex(in: content[...]) != nil else {
+            return nil
+        }
+        do {
+            return try parseArrayHeader(content)
+        } catch {
+            if strict { throw error }
+            return nil
+        }
+    }
+
     private func parseArrayHeader(_ content: String) throws -> ArrayHeader {
         // Pattern: [key][N{delimiter}]{fields}:
         // Examples: [3]:, key[2]:, items[3]{a,b,c}:, items[2|]{a|b}:
@@ -1467,7 +1489,7 @@ private final class Parser {
 
         // Check for array header WITHOUT key: - [N]: a,b,c
         // This returns a bare array, not an object with an array field
-        if content.hasPrefix("["), let header = try? parseArrayHeader(content) {
+        if content.hasPrefix("["), let header = try parseHeaderIfPresent(content) {
             // Specification 6 allows a keyless header as a list item only
             // without a field list.
             if header.fields != nil, strict {
@@ -1493,8 +1515,7 @@ private final class Parser {
                 // A header on the hyphen line describes the first field of the
                 // list-item object. That field sits one level below the hyphen
                 // line, so its rows sit two levels below it (specification 10).
-                if isArrayHeaderLine(content),
-                    let header = try? parseArrayHeader(content),
+                if let header = try parseHeaderIfPresent(content),
                     let headerKey = header.key
                 {
                     objectValues[headerKey] = try parseArrayContent(
@@ -1510,7 +1531,7 @@ private final class Parser {
             } else {
                 // Check if the key is an array header (like nums[3])
                 // The full string would be "nums[3]: 1,2,3"
-                if let header = try? parseArrayHeader(content) {
+                if let header = try parseHeaderIfPresent(content) {
                     // Parse as array with the key
                     let array = try parseArrayContent(header: header, atDepth: depth)
                     let arrayKey = header.key ?? key
