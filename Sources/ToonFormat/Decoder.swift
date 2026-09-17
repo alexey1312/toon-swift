@@ -1319,7 +1319,10 @@ private final class Parser {
             let rest = content[content.index(after: colonIndex)...].trimmingLeadingSpace()
             let cells = try parseDelimitedValues(String(rest), delimiter: header.delimiter)
 
-            if cells.count != width {
+            // Specification 14.1 makes a width mismatch an error in strict
+            // mode only. Outside strict mode ``materializeRow`` keeps a leaf
+            // with no cell absent, and drops a surplus cell.
+            if cells.count != width, strict {
                 throw TOONDecodingError.fieldCountMismatch(
                     expected: width,
                     actual: cells.count,
@@ -1404,7 +1407,10 @@ private final class Parser {
             // The width of a row is the number of leaves, not the number of
             // entries of the field list: a nested group spans several cells.
             let width = fields.leafCount
-            if cells.count != width {
+            // Specification 14.1 makes a width mismatch an error in strict
+            // mode only. Outside strict mode ``materializeRow`` keeps a leaf
+            // with no cell absent, and drops a surplus cell.
+            if cells.count != width, strict {
                 throw TOONDecodingError.fieldCountMismatch(
                     expected: width,
                     actual: cells.count,

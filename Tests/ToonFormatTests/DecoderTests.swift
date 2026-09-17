@@ -1377,6 +1377,49 @@ struct DecoderTests {
         #expect(value == expected)
     }
 
+    /// Outside strict mode a row of the wrong width is not an error.
+    ///
+    /// Section 14.1 makes a leaf with no cell absent from the object, and
+    /// lets a surplus cell contribute nothing. `materializeRow` already did
+    /// that, but both call sites threw before the field walk could run, so
+    /// the rule was unreachable.
+    @Test func aRowOfTheWrongWidthIsNotAnErrorOutsideStrictMode() async throws {
+        let lenient = TOONDecoder()
+        lenient.strict = false
+
+        let short = try lenient.decode(
+            TOONValue.self,
+            from: Data("items[1]{a,b,c}:\n  1,2".utf8)
+        )
+        let long = try lenient.decode(
+            TOONValue.self,
+            from: Data("items[1]{a,b}:\n  1,2,3".utf8)
+        )
+
+        let expected = TOONValue.object(
+            TOONObject([
+                ("items", .array([.object(TOONObject([("a", .int(1)), ("b", .int(2))]))]))
+            ])
+        )
+        #expect(short == expected)
+        #expect(long == expected)
+
+        // A keyed scope follows the same rule.
+        let keyed = try lenient.decode(
+            TOONValue.self,
+            from: Data("t[1:]{a,b}:\n  k: 1".utf8)
+        )
+        let expectedKeyed = TOONValue.object(
+            TOONObject([("t", .object(TOONObject([("k", .object(TOONObject([("a", .int(1))])))])))])
+        )
+        #expect(keyed == expectedKeyed)
+
+        // Strict mode still reports the mismatch.
+        #expect(throws: TOONDecodingError.self) {
+            try self.decoder.decode(TOONValue.self, from: Data("items[1]{a,b,c}:\n  1,2".utf8))
+        }
+    }
+
     // MARK: - Error Cases
 
     @Test func invalidEscapeSequence() async throws {
