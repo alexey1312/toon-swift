@@ -123,6 +123,10 @@ between those versions, so the output changes too.
 | `expandPaths` is deprecated and now defaults to `.disabled` | A dotted key is one literal key. To read a document written with key folding, set `.safe` and re-encode. |
 | An empty array is written `key: []`, not `key[0]:` | Nothing; both forms decode. |
 | A dictionary of uniform objects is written in the keyed tabular form | Nothing; the form round-trips. |
+| `indentSize` below 1 throws | Pass 1 or more. The decoder used to flatten the document, and the encoder used to stop the process. |
+| A number that a `Float` or a `UInt64` cannot hold throws | Decode into `Double` or `String` instead. The value used to become an infinity, or to lose its sign check. |
+| The line number of an error moved | A test that asserts on a line number needs new values. The number now names the line that carries the defect. |
+| Outside strict mode the decoder accepts more | A row of the wrong width and a line after the root value no longer throw, which follows specification 14. |
 
 ## Usage
 
