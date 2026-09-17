@@ -30,7 +30,7 @@ struct FieldNode: Hashable {
 extension Array where Element == FieldNode {
     /// The number of cells that one row carries.
     ///
-    /// The width check of § 14.2 uses this count, not the number of entries of
+    /// The width check of § 14.1 uses this count, not the number of entries of
     /// the field list.
     var leafCount: Int {
         reduce(0) { total, field in

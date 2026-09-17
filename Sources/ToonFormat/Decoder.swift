@@ -47,7 +47,9 @@ public final class TOONDecoder {
 
     /// The number of spaces of one indentation level.
     ///
-    /// TOON specification 13.2 defines this option, with a default of 2.
+    /// TOON specification 13 defines this option, with a default of 2.
+    /// Section 13.2 is the conformance checklist of a decoder, and defines no
+    /// option.
     ///
     /// Earlier releases read the indentation size from the first indented line
     /// of the document. That guess is not part of the specification, and it
@@ -62,7 +64,7 @@ public final class TOONDecoder {
 
     /// Whether to enforce the strict-mode rules of TOON specification 14.
     ///
-    /// Specification 13.2 defines this option, with a default of `true`.
+    /// TOON specification 13 defines this option, with a default of `true`.
     ///
     /// In strict mode a document must satisfy every rule of section 14: the
     /// declared counts must match, a field name must not repeat, and the
@@ -83,7 +85,7 @@ public final class TOONDecoder {
     /// Path expansion determines how dotted keys (e.g., `user.profile.name`) are interpreted
     /// during decoding. This enables a more compact representation of nested data structures.
     public enum PathExpansion: Hashable, Sendable {
-        /// Automatic path expansion (default).
+        /// Automatic path expansion.
         ///
         /// Expands dotted keys when they match the target type's structure,
         /// falling back gracefully to literal string keys if expansion causes conflicts.
@@ -178,7 +180,9 @@ public final class TOONDecoder {
     /// Creates a new TOON decoder with default configuration.
     ///
     /// Default settings:
-    /// - `expandPaths`: `.automatic`
+    /// - `indentSize`: 2
+    /// - `strict`: `true`
+    /// - `expandPaths`: `.disabled`
     /// - `limits`: `.default`
     public init() {}
 
@@ -477,7 +481,7 @@ private final class Parser {
 
     /// Skips the blank lines, and rejects one that sits inside a scope.
     ///
-    /// Specification 14.2 forbids a blank line inside the span of a header.
+    /// Specification 12 forbids a blank line inside the span of a header.
     /// The span runs from the first row, entry or item of the scope through
     /// the last line of its content, so a blank line before the first one and
     /// a blank line after the last one are both ignorable. A blank line is
@@ -907,7 +911,9 @@ private final class Parser {
 
         // Reject length marker # (removed in TOON v2.0)
         if remaining.first == "#" {
-            throw TOONDecodingError.invalidHeader("Length marker '#' is not supported in TOON v3: \(content)")
+            throw TOONDecodingError.invalidHeader(
+                "A length marker '#' is not part of the format: \(content)"
+            )
         }
 
         // Parse count
@@ -1576,7 +1582,7 @@ private final class Parser {
 
             // Parse additional fields at depth + 1. The fields of a list-item
             // object are the content of its scope, so a blank line among them
-            // is interior and section 14.2 rejects it.
+            // is interior and section 12 rejects it.
             while let nextLine = peekLine() {
                 if nextLine.isEmpty {
                     // Leave the blank lines for the enclosing scope when they
@@ -1656,13 +1662,14 @@ private final class Parser {
         return values
     }
 
-    /// Reads a value that sits after a key-value colon, at the root, or on a
-    /// list-item line.
+    /// Reads a value that sits after a key-value colon.
     ///
-    /// Specification 4 gives the literal token `[]` in those three positions
-    /// the meaning of an empty array. Inside an inline array or a tabular
-    /// cell the same token is the string `[]`, so only this entry point
-    /// recognizes it.
+    /// Specification 4 gives the literal token `[]` the meaning of an empty
+    /// array in a value position. Inside an inline array or a tabular cell
+    /// the same token is the string `[]`.
+    ///
+    /// The other two value positions read the token on their own: the root
+    /// in ``parse()``, and a list-item line in ``parseListItemContent(_:atDepth:delimiter:)``.
     private func parseValueInValuePosition(_ content: String) throws -> Value {
         if content.trimmingSpaces() == "[]" {
             return .array([])

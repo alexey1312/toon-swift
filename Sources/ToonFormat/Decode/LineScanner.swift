@@ -8,7 +8,8 @@ struct ScannedDocument {
     /// The lines to parse.
     ///
     /// The byte-order mark, the carriage returns, the trailing spaces and the
-    /// comment lines are removed. Blank lines stay, because § 14.2 counts them.
+    /// comment lines are removed. Blank lines stay, because § 12 makes a blank
+    /// line inside the span of a header an error.
     let lines: [String]
 
     /// The 1-based number of each line in the original document.
@@ -93,7 +94,7 @@ enum LineScanner {
         return ScannedDocument(lines: lines, sourceLineNumbers: sourceLineNumbers)
     }
 
-    /// Applies the strict indentation rules of specification 12 and 14.2.
+    /// Applies the strict indentation rules of specification 12.
     ///
     /// A tab in the indentation is an error. The number of leading spaces must
     /// be a multiple of the indent size.

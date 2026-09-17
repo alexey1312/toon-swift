@@ -7,14 +7,16 @@ import Foundation
 public final class TOONEncoder {
     /// The number of spaces of one indentation level.
     ///
-    /// TOON specification 13.1 names this option `indentSize`, with a default
-    /// of 2.
+    /// TOON specification 13 names this option `indentSize`, with a default
+    /// of 2. Section 13.1 is the conformance checklist of an encoder, and
+    /// defines no option.
     public var indentSize: Int = 2
 
     /// The former name of ``indentSize``.
     ///
-    /// Specification 3.3 renamed the option, and says an implementation may
-    /// keep the old name as a deprecated alias.
+    /// The specification took the name `indentSize` in release 3.3. The
+    /// compatibility note of release 4.1 lets an implementation keep the old
+    /// name as a deprecated alias.
     @available(*, deprecated, renamed: "indentSize")
     public var indent: Int {
         get { indentSize }
@@ -1699,10 +1701,8 @@ extension TOONEncoder {
     }
 }
 
-// MARK: - Number Formatter
+// MARK: - Number Formatting
 
-// Shared number formatter that's used to avoid scientific notation
-// and format numbers in canonical decimal form (no trailing zeros)
 /// Renders a finite `Double` in the canonical decimal form of TOON
 /// specification 2.
 ///

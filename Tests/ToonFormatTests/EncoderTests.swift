@@ -816,7 +816,7 @@ struct EncoderTests {
         let nestedResult = String(data: try encoder.encode(nestedObj), encoding: .utf8)!
 
         // Specification 9.3 collapses a uniform nested-object column into a
-        // nested field group, and section 13.1 makes the tabular form
+        // nested field group, and section 9.3 makes the tabular form
         // mandatory wherever detection succeeds. The rows stay flat, so the
         // cell for nested.x sits beside the cell for id.
         #expect(nestedResult == "items[1]{id,nested{x}}:\n  1,\"1\"")
