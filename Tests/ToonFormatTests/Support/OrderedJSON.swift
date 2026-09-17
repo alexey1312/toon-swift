@@ -39,8 +39,16 @@ enum OrderedJSON {
     }
 
     private struct Parser {
+        /// The deepest nesting that the reader follows.
+        ///
+        /// The reader calls itself for a nested value, so a file of many open
+        /// brackets would overflow the stack and stop the test process. The
+        /// limit turns that into an error. The fixtures nest about five deep.
+        static let maximumDepth = 256
+
         let scalars: [Unicode.Scalar]
         var offset = 0
+        var depth = 0
 
         var isAtEnd: Bool { offset >= scalars.count }
 
@@ -62,8 +70,13 @@ enum OrderedJSON {
                 throw ParseError(message: "Unexpected end of input", offset: offset)
             }
             switch scalar {
-            case "{": return try parseObject()
-            case "[": return try parseArray()
+            case "{", "[":
+                guard depth < Self.maximumDepth else {
+                    throw ParseError(message: "The nesting is too deep", offset: offset)
+                }
+                depth += 1
+                defer { depth -= 1 }
+                return scalar == "{" ? try parseObject() : try parseArray()
             case "\"": return .string(try parseString())
             case "t":
                 try expect("true")
@@ -158,6 +171,15 @@ enum OrderedJSON {
                 case "\\":
                     result.append(try parseEscape())
                 default:
+                    // JSON needs an escape for a scalar below U+0020. A raw
+                    // control scalar, a raw line feed among them, marks a
+                    // damaged file, so the reader stops rather than take it.
+                    guard scalar.value >= 0x20 else {
+                        throw ParseError(
+                            message: "A control scalar needs an escape",
+                            offset: offset - 1
+                        )
+                    }
                     result.append(scalar)
                 }
             }
@@ -221,31 +243,57 @@ enum OrderedJSON {
             return value
         }
 
+        /// Reads a number, and follows the grammar of JSON exactly.
+        ///
+        /// An earlier reader took every digit, sign, dot and exponent letter,
+        /// then handed the token to `Int64(_:)` or `Double(_:)`. Both have a
+        /// wider grammar than JSON, so the reader accepted `007`, `+5`, `.5`
+        /// and `1.`. The oracle of a conformance suite must not be looser
+        /// than the format it reads.
         private mutating func parseNumber() throws -> TOONValue {
             let start = offset
-            if current == "-" { offset += 1 }
             var isDouble = false
-            while let scalar = current {
-                if scalar.isASCIIDigit {
-                    offset += 1
-                } else if scalar == "." || scalar == "e" || scalar == "E" {
-                    isDouble = true
-                    offset += 1
-                } else if scalar == "+" || scalar == "-" {
-                    offset += 1
-                } else {
-                    break
+
+            if current == "-" { offset += 1 }
+
+            // The integer part is a single zero, or a digit from 1 to 9 and
+            // then any digits.
+            guard let first = current, first.isASCIIDigit else {
+                throw ParseError(message: "Expected a digit", offset: offset)
+            }
+            offset += 1
+            if first != "0" {
+                while let scalar = current, scalar.isASCIIDigit { offset += 1 }
+            }
+
+            if current == "." {
+                offset += 1
+                guard let scalar = current, scalar.isASCIIDigit else {
+                    throw ParseError(message: "Expected a digit after the point", offset: offset)
                 }
+                while let scalar = current, scalar.isASCIIDigit { offset += 1 }
+                isDouble = true
             }
+
+            if current == "e" || current == "E" {
+                offset += 1
+                if current == "+" || current == "-" { offset += 1 }
+                guard let scalar = current, scalar.isASCIIDigit else {
+                    throw ParseError(
+                        message: "Expected a digit in the exponent",
+                        offset: offset
+                    )
+                }
+                while let scalar = current, scalar.isASCIIDigit { offset += 1 }
+                isDouble = true
+            }
+
             let token = String(String.UnicodeScalarView(scalars[start ..< offset]))
-            guard !token.isEmpty, token != "-" else {
-                throw ParseError(message: "Expected a number", offset: start)
-            }
             if !isDouble, let integer = Int64(token) {
                 return .int(integer)
             }
-            guard let number = Double(token) else {
-                throw ParseError(message: "Invalid number '\(token)'", offset: start)
+            guard let number = Double(token), number.isFinite else {
+                throw ParseError(message: "The number '\(token)' does not fit", offset: start)
             }
             return .double(number)
         }
