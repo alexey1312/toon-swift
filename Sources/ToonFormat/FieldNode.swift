@@ -43,10 +43,14 @@ extension Array where Element == FieldNode {
     /// § 9.3 states that names repeated at different levels of nesting are not
     /// duplicates, so `{x,n{x}}` is well-formed. The check therefore starts a
     /// new set of seen names for every level.
+    ///
+    /// Two names are the same name only when their Unicode scalar sequences
+    /// are equal. § 16 gives that rule to a field name as it gives it to a
+    /// key, so the set holds ``ScalarKey`` and not `String`.
     func firstDuplicateName() -> String? {
-        var seen = Set<String>()
+        var seen = Set<ScalarKey>()
         for field in self {
-            if !seen.insert(field.name).inserted {
+            if !seen.insert(ScalarKey(field.name)).inserted {
                 return field.name
             }
             if let nested = field.children?.firstDuplicateName() {

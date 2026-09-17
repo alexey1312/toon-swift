@@ -1436,6 +1436,37 @@ struct DecoderTests {
         }
     }
 
+    /// Two field names that differ only in normalization form are two names.
+    ///
+    /// Section 16 gives a field name the same identity rule as a key. The
+    /// duplicate check used a `Set<String>`, and Swift compares a `String` by
+    /// canonical equivalence, so a header that carries both forms was
+    /// rejected as a duplicate.
+    @Test func fieldNamesThatDifferOnlyInNormalizationFormStayApart() async throws {
+        let composed = "\u{00E9}"
+        let decomposed = "e\u{0301}"
+        let toon = "rows[1]{\(composed),\(decomposed)}:\n  1,2"
+
+        let value = try decoder.decode(TOONValue.self, from: Data(toon.utf8))
+
+        let expected = TOONValue.object(
+            TOONObject([
+                (
+                    "rows",
+                    .array([
+                        .object(TOONObject([(composed, .int(1)), (decomposed, .int(2))]))
+                    ])
+                )
+            ])
+        )
+        #expect(value == expected)
+
+        // The same name twice is still a duplicate.
+        #expect(throws: TOONDecodingError.self) {
+            try self.decoder.decode(TOONValue.self, from: Data("rows[1]{a,a}:\n  1,2".utf8))
+        }
+    }
+
     // MARK: - Error Line Numbers
 
     /// One error, and the line of the document that carries the defect.
