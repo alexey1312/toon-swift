@@ -1467,6 +1467,40 @@ struct DecoderTests {
         }
     }
 
+    /// A token that section 4 makes a string never becomes a UInt64.
+    ///
+    /// A UInt64 above Int64.max stays a string in the model, and the Codable
+    /// bridge reads it back from there. `UInt64(_:)` accepts a leading plus,
+    /// which section 4 forbids, so `+5` decoded as the number 5.
+    @Test func aStringTokenDoesNotBecomeAUInt64() async throws {
+        struct Box: Codable { let n: UInt64 }
+
+        #expect(throws: TOONDecodingError.self) {
+            try self.decoder.decode(Box.self, from: Data("n: +5".utf8))
+        }
+
+        // A value above Int64.max still survives the round trip.
+        let big = try decoder.decode(Box.self, from: Data("n: \"18446744073709551615\"".utf8))
+        #expect(big.n == UInt64.max)
+    }
+
+    /// A Double that a Float cannot hold is an error, not an infinity.
+    ///
+    /// Every integer helper uses `exactly:` and reports a value that does not
+    /// fit. The Float path returned `Float(doubleValue)`, which gives an
+    /// infinity for a finite Double that is too large.
+    @Test func aDoubleThatDoesNotFitAFloatIsAnError() async throws {
+        struct Box: Codable { let f: Float }
+
+        #expect(throws: TOONDecodingError.self) {
+            try self.decoder.decode(Box.self, from: Data("f: 1e300".utf8))
+        }
+
+        // A value that fits still decodes, and an inexact one is not rejected.
+        let fits = try decoder.decode(Box.self, from: Data("f: 0.1".utf8))
+        #expect(fits.f == Float(0.1))
+    }
+
     // MARK: - Error Line Numbers
 
     /// One error, and the line of the document that carries the defect.

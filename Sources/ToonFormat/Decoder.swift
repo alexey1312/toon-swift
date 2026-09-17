@@ -1948,7 +1948,7 @@ extension TOONDecoder {
             guard let doubleValue = value.doubleValue else {
                 throw TOONDecodingError.typeMismatch(expected: "float", actual: value.typeName)
             }
-            return Float(doubleValue)
+            return try narrowToFloat(doubleValue)
         }
 
         func decode(_: Int.Type, forKey key: Key) throws -> Int {
@@ -2121,7 +2121,7 @@ extension TOONDecoder {
             guard let doubleValue = value.doubleValue else {
                 throw TOONDecodingError.typeMismatch(expected: "float", actual: value.typeName)
             }
-            return Float(doubleValue)
+            return try narrowToFloat(doubleValue)
         }
 
         func decode(_: Int.Type) throws -> Int {
@@ -2272,7 +2272,7 @@ extension TOONDecoder {
             guard let doubleValue = value.doubleValue else {
                 throw TOONDecodingError.typeMismatch(expected: "float", actual: value.typeName)
             }
-            return Float(doubleValue)
+            return try narrowToFloat(doubleValue)
         }
 
         func decode(_: Int.Type) throws -> Int {
@@ -2454,6 +2454,20 @@ private func decodeUInt32(from value: Value) throws -> UInt32 {
     return result
 }
 
+/// Converts a `Double` to a `Float`, and reports a value that does not fit.
+///
+/// `Float(_:)` gives an infinity for a finite `Double` that is too large. The
+/// integer helpers all use `exactly:` and report such a value, so the floating
+/// point path follows them. `Float(exactly:)` is the wrong tool here: it
+/// rejects every `Double` that a `Float` cannot hold exactly, among them 0.1.
+private func narrowToFloat(_ value: Double) throws -> Float {
+    let result = Float(value)
+    guard result.isFinite || !value.isFinite else {
+        throw TOONDecodingError.dataCorrupted("Value \(value) does not fit in Float")
+    }
+    return result
+}
+
 private func decodeUInt64(from value: Value) throws -> UInt64 {
     // Try integer path first
     if let intValue = value.intValue {
@@ -2463,8 +2477,14 @@ private func decodeUInt64(from value: Value) throws -> UInt64 {
         return result
     }
 
-    // Try string path (for large UInt64s)
-    if let stringValue = value.stringValue, let result = UInt64(stringValue) {
+    // A UInt64 above Int64.max stays a string in the model, so read it back
+    // from there. UInt64(_:) has a wider grammar than section 4: it accepts a
+    // leading plus. The token must match the grammar first, or `+5`, which
+    // section 4 makes a string, would decode as the number 5.
+    if let stringValue = value.stringValue,
+        NumberGrammar.form(of: stringValue) == .integer,
+        let result = UInt64(stringValue)
+    {
         return result
     }
 
