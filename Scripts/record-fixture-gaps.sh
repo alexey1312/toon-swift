@@ -59,13 +59,39 @@ print(f"Recorded {len(ids)} known gaps.")
 PY
 }
 
+log="$(mktemp)"
+backup="$(mktemp)"
+cp "$TARGET" "$backup"
+
+# Warning: the script clears the list before the run. Put the list back
+# whenever the script stops early, so that a broken run never leaves an empty
+# list behind. An empty list makes every case look closed.
+restore_on_failure() {
+  status=$?
+  rm -f "$log"
+  if [ "$status" -ne 0 ]; then
+    cp "$backup" "$TARGET"
+    echo "The script stopped. The list is unchanged." >&2
+  fi
+  rm -f "$backup"
+  exit "$status"
+}
+trap restore_on_failure EXIT
+
 echo "Clearing the list…"
 write_list
 
 echo "Running the fixture suite…"
-log="$(mktemp)"
-trap 'rm -f "$log"' EXIT
 (cd "$ROOT" && swift test --filter FixtureTests > "$log" 2>&1) || true
+
+# A build failure and a failing case both give a non-zero exit status, so the
+# status alone cannot tell them apart. Only a suite that starts writes the
+# summary line, so use that line instead.
+if ! grep -q 'Test run started' "$log"; then
+  echo "The fixture suite did not run. The last 40 lines of the log follow." >&2
+  tail -40 "$log" >&2
+  exit 1
+fi
 
 # Only the issue lines. A "Test case passing …" line names a case that ran,
 # not a case that failed.
@@ -74,13 +100,13 @@ while IFS= read -r identifier; do
   [ -n "$identifier" ] && failing+=("$identifier")
 done < <(
   grep 'recorded an issue' "$log" \
-    | grep -o 'fixture → [a-z]*/[a-z-]*\.json#[0-9]*' \
-    | sed 's/fixture → //' \
+    | grep -Eo 'fixture → [A-Za-z0-9_-]+/[A-Za-z0-9_-]+\.json#[0-9]+' \
+    | awk '{print $NF}' \
     | sort -u
 )
 
 if [ "${#failing[@]}" -eq 0 ]; then
-  echo "No failing case found. Check the run if that is unexpected."
+  echo "No failing case found. The library satisfies every fixture."
 fi
 
 write_list ${failing[@]+"${failing[@]}"}
