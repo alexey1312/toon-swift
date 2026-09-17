@@ -203,6 +203,8 @@ public final class TOONEncoder {
     /// standard Swift types and custom `Encodable` types. Arrays of objects with consistent
     /// keys are automatically formatted as tabular data.
     public func encode<T: Encodable>(_ value: T) throws -> Data {
+        try validateIndentSize()
+
         // Handle special types before they encode themselves
         let mirror = Mirror(reflecting: value)
         let v: Value
@@ -261,6 +263,23 @@ public final class TOONEncoder {
                 encodeObject(values, output: &output, depth: depth)
             }
         }
+    }
+
+    /// Rejects an indentation size that the encoder cannot use.
+    ///
+    /// A size below one gives no indentation, so a nested value lands at the
+    /// depth of its parent and the output no longer holds the structure. A
+    /// negative size traps in `String(repeating:count:)`. The encoder reports
+    /// the mistake instead.
+    private func validateIndentSize() throws {
+        guard indentSize < 1 else { return }
+        throw EncodingError.invalidValue(
+            indentSize,
+            EncodingError.Context(
+                codingPath: [],
+                debugDescription: "The indentation size must be one or more, not \(indentSize)."
+            )
+        )
     }
 
     // MARK: - Object Encoding

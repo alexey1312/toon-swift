@@ -190,6 +190,14 @@ public final class TOONDecoder {
     /// - Returns: The decoded value.
     /// - Throws: ``TOONDecodingError`` if decoding fails.
     public func decode<T: Decodable>(_: T.Type, from data: Data) throws -> T {
+        // A size below one makes every line land at depth zero, so the
+        // decoder would flatten the document rather than report the mistake.
+        guard indentSize >= 1 else {
+            throw TOONDecodingError.invalidFormat(
+                "The indentation size must be one or more, not \(indentSize)"
+            )
+        }
+
         if data.count > limits.maxInputSize {
             throw TOONDecodingError.inputTooLarge(size: data.count, limit: limits.maxInputSize)
         }

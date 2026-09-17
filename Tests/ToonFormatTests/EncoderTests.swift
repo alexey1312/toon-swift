@@ -1175,6 +1175,21 @@ struct EncoderTests {
         #expect(decoded == document)
     }
 
+    /// An indentation size below one is a mistake, not a crash.
+    ///
+    /// A size of zero wrote every line at the left margin, so the output no
+    /// longer held the structure. A negative size trapped inside
+    /// `String(repeating:count:)` and stopped the host process.
+    @Test func anIndentSizeBelowOneIsAnError() async throws {
+        for size in [0, -1] {
+            let encoder = TOONEncoder()
+            encoder.indentSize = size
+            #expect(throws: (any Error).self) {
+                try encoder.encode(["a": ["b": 1]])
+            }
+        }
+    }
+
     // MARK: - Root Arrays
 
     @Test func rootPrimitiveArray() async throws {

@@ -1420,6 +1420,22 @@ struct DecoderTests {
         }
     }
 
+    /// An indentation size below one is a mistake, not a silent flattening.
+    ///
+    /// The decoder divided by the size to get the depth of a line, and
+    /// treated a size of zero as depth zero for every line. The document
+    /// `a:` plus `  b: 1` then gave `{"a":{},"b":1}`, which loses the
+    /// structure and reports nothing.
+    @Test func anIndentSizeBelowOneIsAnError() async throws {
+        for size in [0, -1] {
+            let decoder = TOONDecoder()
+            decoder.indentSize = size
+            #expect(throws: TOONDecodingError.self) {
+                try decoder.decode(TOONValue.self, from: Data("a:\n  b: 1\n  c: 2".utf8))
+            }
+        }
+    }
+
     // MARK: - Error Line Numbers
 
     /// One error, and the line of the document that carries the defect.
