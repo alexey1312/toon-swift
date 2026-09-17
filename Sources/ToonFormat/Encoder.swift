@@ -502,14 +502,11 @@ public final class TOONEncoder {
                             )
                         }
                     case .array(let innerArray):
-                        if innerArray.allSatisfy({ $0.isPrimitive }) {
-                            let inline = formatInlineArray(values: innerArray, key: nil, inListItem: true)
-                            write(
-                                depth: depth + 2,
-                                content: "- \(inline)",
-                                to: &output
-                            )
-                        }
+                        encodeInnerArrayAsListItem(
+                            innerArray,
+                            output: &output,
+                            depth: depth + 2
+                        )
                     case .object(let innerValues):
                         encodeObjectAsListItem(
                             values: innerValues,
