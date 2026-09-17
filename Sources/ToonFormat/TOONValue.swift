@@ -13,12 +13,22 @@ import Foundation
 /// }
 /// ```
 public enum TOONValue: Hashable, Sendable {
+    /// The null value.
     case null
+    /// A boolean.
     case bool(Bool)
+    /// An integer that fits `Int64`.
+    ///
+    /// An integer outside that range stays a ``string(_:)``, which is the
+    /// out-of-range policy that § 4 allows.
     case int(Int64)
+    /// A finite number with a fractional part, an exponent, or both.
     case double(Double)
+    /// A text value.
     case string(String)
+    /// An array, in order.
     case array([TOONValue])
+    /// An object, in the order of its keys.
     case object(TOONObject)
 }
 
@@ -37,9 +47,12 @@ public enum TOONValue: Hashable, Sendable {
 public struct TOONObject: Hashable, Sendable {
     /// One key-value pair.
     public struct Element: Sendable {
+        /// The key of the pair.
         public let key: String
+        /// The value of the pair.
         public var value: TOONValue
 
+        /// Creates a pair.
         public init(key: String, value: TOONValue) {
             self.key = key
             self.value = value
@@ -48,6 +61,7 @@ public struct TOONObject: Hashable, Sendable {
 
     private var storage = ScalarOrderedDictionary<TOONValue>()
 
+    /// Creates an empty object.
     public init() {}
 
     /// Creates an object from a sequence of pairs.
@@ -66,21 +80,34 @@ public struct TOONObject: Hashable, Sendable {
     /// The values, in insertion order.
     public var values: [TOONValue] { storage.values }
 
+    /// The value of the key, or `nil` when the object has no such key.
+    ///
+    /// A new key goes to the end. A key that the object already holds keeps
+    /// its position and takes the new value. Assigning `nil` removes the key,
+    /// and the keys that follow it move up one position.
+    ///
+    /// Two keys are the same key only when their Unicode scalar sequences are
+    /// equal, so `"é"` and `"e" + U+0301` address two different entries.
     public subscript(key: String) -> TOONValue? {
         get { storage[key] }
         set { storage[key] = newValue }
     }
 }
 
+/// The object reads as a collection of its pairs, in the order of its keys.
 extension TOONObject: RandomAccessCollection {
     public var startIndex: Int { storage.startIndex }
     public var endIndex: Int { storage.endIndex }
+
+    /// The pair at the position.
     public subscript(position: Int) -> Element {
         Element(key: storage[position].key, value: storage[position].value)
     }
 }
 
 extension TOONObject: ExpressibleByDictionaryLiteral {
+    /// Creates an object from a dictionary literal, and keeps the order in
+    /// which the literal writes the keys.
     public init(dictionaryLiteral pairs: (String, TOONValue)...) {
         self.init(pairs)
     }
@@ -89,6 +116,11 @@ extension TOONObject: ExpressibleByDictionaryLiteral {
 // MARK: - Codable
 
 extension TOONValue: Codable {
+    /// Reads a value of any shape.
+    ///
+    /// The order of the keys of an object survives only when the decoder
+    /// reports it. ``TOONDecoder`` does. `JSONDecoder` leaves the order of
+    /// `allKeys` undefined, so that path keeps the content and not the order.
     public init(from decoder: any Decoder) throws {
         if let container = try? decoder.singleValueContainer(), container.decodeNil() {
             self = .null
@@ -123,6 +155,7 @@ extension TOONValue: Codable {
         }
     }
 
+    /// Writes the value, and keeps the order of the keys of an object.
     public func encode(to encoder: any Encoder) throws {
         switch self {
         case .null:
