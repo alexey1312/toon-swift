@@ -230,8 +230,10 @@ public final class TOONEncoder {
         var output: [String] = []
         encodeValue(v, output: &output, depth: 0)
 
-        let result = output.joined(separator: "\n")
-        return result.data(using: .utf8) ?? Data()
+        // Data(_:) takes the UTF-8 view of a native String, which always
+        // exists. The earlier data(using:) returned an optional, and the
+        // fallback would have given an empty document for a whole encode.
+        return Data(output.joined(separator: "\n").utf8)
     }
 
     // MARK: - Encoding Entry Point
