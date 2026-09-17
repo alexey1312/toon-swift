@@ -307,11 +307,21 @@ private final class Parser {
     /// Maps an index into ``lines`` to the line number of the original
     /// document. The pre-pass drops the comment lines, so the two differ.
     private func sourceLine(_ index: Int) -> Int {
-        if index < sourceLineNumbers.count {
+        if index >= 0, index < sourceLineNumbers.count {
             return sourceLineNumbers[index]
+        }
+        if index < 0 {
+            return sourceLineNumbers.first ?? 1
         }
         return (sourceLineNumbers.last ?? 0) + 1
     }
+
+    /// The line number of the line that ``consumeLine`` returned last.
+    ///
+    /// An error found after the read of a line must name that line, not the
+    /// line that follows it. ``currentLine`` already points past the line at
+    /// that moment.
+    private var lastReadSourceLine: Int { sourceLine(currentLine - 1) }
 
     /// Rejects a line that follows a root scope.
     ///
@@ -517,7 +527,7 @@ private final class Parser {
     ) throws {
         if values[key] != nil, strict {
             throw TOONDecodingError.invalidFormat(
-                "Duplicate key '\(key)' at line \(sourceLine(currentLine))"
+                "Duplicate key '\(key)' at line \(lastReadSourceLine)"
             )
         }
 
@@ -628,12 +638,14 @@ private final class Parser {
 
         // Check for list item starting with "- "
         if content.hasPrefix("- ") {
-            throw TOONDecodingError.invalidFormat("Unexpected list item outside array context at line \(currentLine)")
+            throw TOONDecodingError.invalidFormat(
+                "Unexpected list item outside array context at line \(lastReadSourceLine)"
+            )
         }
 
         // Parse as key: value
         guard let colonIndex = findKeyValueSeparator(in: content) else {
-            throw TOONDecodingError.invalidFormat("Expected key: value at line \(currentLine), got: \(content)")
+            throw TOONDecodingError.invalidFormat("Expected key: value at line \(lastReadSourceLine), got: \(content)")
         }
 
         let keyPart = String(content[..<colonIndex])
@@ -727,7 +739,7 @@ private final class Parser {
         // Check if it's a list item
         if content.hasPrefix("- ") {
             // This shouldn't happen here - arrays should be parsed via array header
-            throw TOONDecodingError.invalidFormat("Unexpected list item at line \(currentLine + 1)")
+            throw TOONDecodingError.invalidFormat("Unexpected list item at line \(sourceLine(currentLine))")
         }
 
         // Parse as nested object
@@ -1228,7 +1240,7 @@ private final class Parser {
                     throw TOONDecodingError.countMismatch(
                         expected: header.count,
                         actual: values.count,
-                        line: sourceLine(currentLine)
+                        line: lastReadSourceLine
                     )
                 }
                 return .array(values)
@@ -1309,7 +1321,7 @@ private final class Parser {
                 if strict {
                     throw TOONDecodingError.invalidFormat(
                         "An entry row of a keyed scope needs a colon, at line "
-                            + "\(sourceLine(currentLine))"
+                            + "\(lastReadSourceLine)"
                     )
                 }
                 continue
@@ -1326,7 +1338,7 @@ private final class Parser {
                 throw TOONDecodingError.fieldCountMismatch(
                     expected: width,
                     actual: cells.count,
-                    line: sourceLine(currentLine)
+                    line: lastReadSourceLine
                 )
             }
 
@@ -1340,7 +1352,7 @@ private final class Parser {
             throw TOONDecodingError.countMismatch(
                 expected: header.count,
                 actual: values.count,
-                line: sourceLine(currentLine)
+                line: lastReadSourceLine
             )
         }
 
@@ -1414,7 +1426,7 @@ private final class Parser {
                 throw TOONDecodingError.fieldCountMismatch(
                     expected: width,
                     actual: cells.count,
-                    line: sourceLine(currentLine)
+                    line: lastReadSourceLine
                 )
             }
 
@@ -1426,7 +1438,7 @@ private final class Parser {
             throw TOONDecodingError.countMismatch(
                 expected: count,
                 actual: rows.count,
-                line: sourceLine(currentLine)
+                line: lastReadSourceLine
             )
         }
 
@@ -1473,7 +1485,7 @@ private final class Parser {
             throw TOONDecodingError.countMismatch(
                 expected: count,
                 actual: items.count,
-                line: sourceLine(currentLine)
+                line: lastReadSourceLine
             )
         }
 
@@ -1657,12 +1669,12 @@ private final class Parser {
         if trimmed.hasPrefix("\"") {
             guard let closing = findClosingQuote(in: trimmed[...]) else {
                 throw TOONDecodingError.invalidFormat(
-                    "Unterminated quoted value at line \(sourceLine(currentLine))"
+                    "Unterminated quoted value at line \(lastReadSourceLine)"
                 )
             }
             guard trimmed.index(after: closing) == trimmed.endIndex else {
                 throw TOONDecodingError.invalidFormat(
-                    "Characters after the closing quote at line \(sourceLine(currentLine))"
+                    "Characters after the closing quote at line \(lastReadSourceLine)"
                 )
             }
             let inner = String(trimmed[trimmed.index(after: trimmed.startIndex) ..< closing])
@@ -1800,7 +1812,7 @@ private final class Parser {
 
         if let existing = existing {
             guard case let .object(vals) = existing else {
-                throw TOONDecodingError.pathCollision(path: segment, line: sourceLine(currentLine))
+                throw TOONDecodingError.pathCollision(path: segment, line: lastReadSourceLine)
             }
             objectValues = vals
         } else {

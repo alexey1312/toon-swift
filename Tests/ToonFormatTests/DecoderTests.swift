@@ -1420,6 +1420,104 @@ struct DecoderTests {
         }
     }
 
+    // MARK: - Error Line Numbers
+
+    /// One error, and the line of the document that carries the defect.
+    struct ErrorLineCase: Sendable, CustomTestStringConvertible {
+        let label: String
+        let source: String
+        let line: Int
+
+        var testDescription: String { label }
+    }
+
+    /// Every error that names a line, with the line that carries the defect.
+    ///
+    /// The count of a scope, the width of a row and a duplicate key are all
+    /// found after the read of the line. The decoder used to report the line
+    /// that follows, because ``currentLine`` already points past the line at
+    /// that moment. Three other messages used the index into the filtered
+    /// lines, so a comment line above the defect shifted the number.
+    ///
+    /// Only a test of the number catches either defect. A test that asks for
+    /// an error alone passes with any number.
+    static let errorLines: [ErrorLineCase] = [
+        .init(label: "a duplicate key", source: "a: 1\na: 2", line: 2),
+        .init(label: "a duplicate key below a comment", source: "# note\na: 1\na: 2", line: 3),
+        .init(label: "an unterminated quoted value", source: "a: 1\nb: \"x", line: 2),
+        .init(label: "content after a closing quote", source: "a: 1\nk: \"abc\" def", line: 2),
+        .init(label: "too few list items", source: "x: 0\nitems[2]:\n  - 1", line: 3),
+        .init(label: "too many inline values", source: "tags[2]: a,b,c", line: 1),
+        .init(label: "too few inline values", source: "x: 0\ntags[3]: a,b", line: 2),
+        .init(label: "too few tabular rows", source: "x: 0\nitems[2]{a}:\n  1", line: 3),
+        .init(label: "a tabular row of the wrong width", source: "items[1]{a,b,c}:\n  1,2", line: 2),
+        .init(label: "too few keyed rows", source: "x: 0\nm[2:]{v}:\n  k: 1", line: 3),
+        .init(label: "a keyed row with no colon", source: "x: 0\nm[1:]{v}:\n  bare", line: 3),
+        .init(label: "a keyed row of the wrong width", source: "x: 0\nm[1:]{a,b}:\n  k: 1", line: 3),
+        .init(label: "a blank line inside a scope", source: "items[2]:\n  - 1\n\n  - 2", line: 3),
+        .init(
+            label: "a blank line inside a list item",
+            source: "x: 0\nitems[2]:\n  - a: 1\n\n    b: 2\n  - c: 3",
+            line: 4
+        ),
+        .init(label: "content after the root value", source: "[2]: 1,2\nleftover: 1", line: 2),
+        .init(label: "a line that is not a pair", source: "a: 1\nb", line: 2),
+        .init(
+            label: "a line that is not a pair, below comments",
+            source: "# one\n# two\n# three\na: 1\nb",
+            line: 5
+        ),
+        .init(label: "a list item outside an array", source: "a: 1\n- 2", line: 2),
+        .init(
+            label: "a list item outside an array, below comments",
+            source: "# one\n# two\na: 1\n- 2",
+            line: 4
+        ),
+        .init(
+            label: "a list item among the fields of an object",
+            source: "# one\n# two\na:\n  b: 1\n  - x",
+            line: 5
+        ),
+        .init(label: "indentation that is not a multiple", source: "a:\n   b: 1", line: 2),
+        .init(label: "indentation that is too deep", source: "a:\n  b: 1\n     c: 2", line: 3),
+    ]
+
+    @Test("an error names the line that carries the defect", arguments: errorLines)
+    func errorNamesTheLineOfTheDefect(_ testCase: ErrorLineCase) throws {
+        let decoder = TOONDecoder()
+        var reported: Int?
+
+        do {
+            _ = try decoder.decode(TOONValue.self, from: Data(testCase.source.utf8))
+            Issue.record("Expected an error for \(testCase.label).")
+            return
+        } catch let error as TOONDecodingError {
+            reported = Self.lineNumber(of: error)
+        }
+
+        #expect(reported == testCase.line, "the error was \(testCase.label)")
+    }
+
+    /// Reads the line number out of an error.
+    ///
+    /// Some cases carry the number in a field, and some put it in the message,
+    /// so this helper reads both.
+    private static func lineNumber(of error: TOONDecodingError) -> Int? {
+        switch error {
+        case let .countMismatch(_, _, line): return line
+        case let .fieldCountMismatch(_, _, line): return line
+        case let .unexpectedBlankLine(line): return line
+        case let .invalidIndentation(line, _): return line
+        case let .pathCollision(_, line): return line
+        default: break
+        }
+
+        let text = "\(error)"
+        guard let range = text.range(of: "line ") else { return nil }
+        let digits = text[range.upperBound...].prefix { $0.isASCII && $0.isNumber }
+        return Int(digits)
+    }
+
     // MARK: - Error Cases
 
     @Test func invalidEscapeSequence() async throws {
