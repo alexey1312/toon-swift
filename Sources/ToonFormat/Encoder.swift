@@ -247,19 +247,18 @@ public final class TOONEncoder {
         case .array(let array):
             encodeArray(key: nil, array: array, output: &output, depth: depth)
 
-        case .object(let values, let keyOrder):
+        case .object(let values):
             // At the root the keyed header carries no key (specification 9.5).
-            if depth == 0, let header = detectKeyedTabularHeader(values, keyOrder: keyOrder) {
+            if depth == 0, let header = detectKeyedTabularHeader(values) {
                 encodeKeyedTabular(
                     key: nil,
                     values: values,
-                    keyOrder: keyOrder,
                     header: header,
                     output: &output,
                     depth: depth
                 )
             } else {
-                encodeObject(values, keyOrder: keyOrder, output: &output, depth: depth)
+                encodeObject(values, output: &output, depth: depth)
             }
         }
     }
@@ -267,20 +266,19 @@ public final class TOONEncoder {
     // MARK: - Object Encoding
 
     private func encodeObject(
-        _ values: [String: Value],
-        keyOrder: [String],
+        _ values: ObjectStorage,
         output: inout [String],
         depth: Int,
         allowFolding: Bool = true
     ) {
-        for key in keyOrder {
-            guard let value = values[key] else { continue }
+        let siblingKeys = values.keys
+        for element in values {
             encodeKeyValuePair(
-                key: key,
-                value: value,
+                key: element.key,
+                value: element.value,
                 output: &output,
                 depth: depth,
-                siblingKeys: keyOrder,
+                siblingKeys: siblingKeys,
                 allowFolding: allowFolding
             )
         }
@@ -310,11 +308,11 @@ public final class TOONEncoder {
         var hitDepthLimit = false
 
         // Follow the chain of single-key objects, respecting flattenDepth limit
-        while case .object(let nestedValues, let nestedKeyOrder) = currentValue,
-            nestedKeyOrder.count == 1,
-            let singleKey = nestedKeyOrder.first,
-            let nextValue = nestedValues[singleKey]
+        while case .object(let nestedValues) = currentValue,
+            nestedValues.count == 1,
+            let single = nestedValues.first
         {
+            let singleKey = single.key
             // Stop if we've reached the flattenDepth limit
             guard pathComponents.count < storedFlattenDepth else {
                 hitDepthLimit = true
@@ -327,7 +325,7 @@ public final class TOONEncoder {
             }
 
             pathComponents.append(singleKey)
-            currentValue = nextValue
+            currentValue = single.value
         }
 
         // Only fold if we found at least one nested level
@@ -340,8 +338,11 @@ public final class TOONEncoder {
 
         let foldedPath = pathComponents.joined(separator: ".")
 
-        // Collision avoidance: folded key must not equal any existing sibling key
-        if siblingKeys.contains(foldedPath) {
+        // Collision avoidance: a folded key must not equal an existing
+        // sibling key. A folded path holds ASCII identifier segments only, so
+        // the scalar-exact comparison of section 16 never differs from the
+        // canonical one here.
+        if siblingKeys.containsKey(foldedPath) {
             return nil
         }
 
@@ -371,12 +372,11 @@ public final class TOONEncoder {
             case .array(let array):
                 encodeArray(key: path, array: array, output: &output, depth: depth)
 
-            case .object(let values, let keyOrder):
+            case .object(let values):
                 write(depth: depth, content: "\(encodedKey):", to: &output)
-                if !keyOrder.isEmpty {
+                if !values.isEmpty {
                     encodeObject(
                         values,
-                        keyOrder: keyOrder,
                         output: &output,
                         depth: depth + 1,
                         allowFolding: !hitDepthLimit
@@ -398,42 +398,40 @@ public final class TOONEncoder {
         case .array(let array):
             encodeArray(key: key, array: array, output: &output, depth: depth)
 
-        case .object(let values, let keyOrder):
-            if keyOrder.isEmpty {
+        case .object(let values):
+            if values.isEmpty {
                 write(depth: depth, content: "\(encodedKey):", to: &output)
-            } else if let header = detectKeyedTabularHeader(values, keyOrder: keyOrder) {
+            } else if let header = detectKeyedTabularHeader(values) {
                 // Specification 9.5 makes the keyed tabular form mandatory in
                 // object-field position wherever detection succeeds.
                 encodeKeyedTabular(
                     key: key,
                     values: values,
-                    keyOrder: keyOrder,
                     header: header,
                     output: &output,
                     depth: depth
                 )
             } else {
                 write(depth: depth, content: "\(encodedKey):", to: &output)
-                encodeObject(values, keyOrder: keyOrder, output: &output, depth: depth + 1)
+                encodeObject(values, output: &output, depth: depth + 1)
             }
         }
     }
 
     private func encodeObjectAsListItem(
-        values: [String: Value],
-        keyOrder: [String],
+        values: ObjectStorage,
         output: inout [String],
         depth: Int
     ) {
-        if keyOrder.isEmpty {
+        guard let first = values.first else {
             write(depth: depth, content: "-", to: &output)
             return
         }
 
         // First key-value on the same line as "- "
-        let firstKey = keyOrder[0]
+        let firstKey = first.key
         let encodedKey = encodeKey(firstKey)
-        let firstValue = values[firstKey]!
+        let firstValue = first.value
 
         switch firstValue {
         case .null, .bool, .int, .double, .string, .date, .url, .data:
@@ -474,10 +472,9 @@ public final class TOONEncoder {
                         to: &output
                     )
                     for item in array {
-                        if let (values, keyOrder) = item.objectValue {
+                        if let values = item.objectValue {
                             encodeObjectAsListItem(
                                 values: values,
-                                keyOrder: keyOrder,
                                 output: &output,
                                 depth: depth + 2
                             )
@@ -513,10 +510,9 @@ public final class TOONEncoder {
                                 to: &output
                             )
                         }
-                    case .object(let innerValues, let innerKeyOrder):
+                    case .object(let innerValues):
                         encodeObjectAsListItem(
                             values: innerValues,
-                            keyOrder: innerKeyOrder,
                             output: &output,
                             depth: depth + 2
                         )
@@ -524,43 +520,44 @@ public final class TOONEncoder {
                 }
             }
 
-        case .object(let nestedValues, let nestedKeyOrder):
-            if nestedKeyOrder.isEmpty {
+        case .object(let nestedValues):
+            if nestedValues.isEmpty {
                 write(depth: depth, content: "- \(encodedKey):", to: &output)
-            } else if let header = detectKeyedTabularHeader(
-                nestedValues,
-                keyOrder: nestedKeyOrder
-            ) {
+            } else if let header = detectKeyedTabularHeader(nestedValues) {
                 // Specification 10 lets a keyed header sit on the hyphen line.
                 // Its entry rows go two levels below that line, which puts the
                 // sibling fields one level above them.
                 var headerStr = encodeKey(firstKey)
                 let delimiterSuffix = delimiter.rawValue != "," ? delimiter.rawValue : ""
-                headerStr += "[\(nestedKeyOrder.count):\(delimiterSuffix)]"
+                headerStr += "[\(nestedValues.count):\(delimiterSuffix)]"
                 headerStr += "{\(formatFieldList(header, delimiter: delimiter.rawValue))}:"
                 write(depth: depth, content: "- \(headerStr)", to: &output)
 
-                for entryKey in nestedKeyOrder {
-                    guard let entry = nestedValues[entryKey] else { continue }
-                    let cells = collectRowLeaves(entry, fields: header)
+                for entry in nestedValues {
+                    let cells = collectRowLeaves(entry.value, fields: header)
                     let row = joinEncodedValues(cells, delimiter: delimiter.rawValue)
                     write(
                         depth: depth + 2,
-                        content: "\(encodeKey(entryKey)): \(row)",
+                        content: "\(encodeKey(entry.key)): \(row)",
                         to: &output
                     )
                 }
             } else {
                 write(depth: depth, content: "- \(encodedKey):", to: &output)
-                encodeObject(nestedValues, keyOrder: nestedKeyOrder, output: &output, depth: depth + 2)
+                encodeObject(nestedValues, output: &output, depth: depth + 2)
             }
         }
 
         // Remaining keys on indented lines
-        for i in 1 ..< keyOrder.count {
-            let key = keyOrder[i]
-            guard let value = values[key] else { continue }
-            encodeKeyValuePair(key: key, value: value, output: &output, depth: depth + 1, siblingKeys: keyOrder)
+        let siblingKeys = values.keys
+        for element in values.dropFirst() {
+            encodeKeyValuePair(
+                key: element.key,
+                value: element.value,
+                output: &output,
+                depth: depth + 1,
+                siblingKeys: siblingKeys
+            )
         }
     }
 
@@ -691,10 +688,9 @@ public final class TOONEncoder {
                 }
             case .array(let inner):
                 encodeInnerArrayAsListItem(inner, output: &output, depth: depth + 1)
-            case .object(let values, let keyOrder):
+            case .object(let values):
                 encodeObjectAsListItem(
                     values: values,
-                    keyOrder: keyOrder,
                     output: &output,
                     depth: depth + 1
                 )
@@ -725,10 +721,9 @@ public final class TOONEncoder {
             case .array(let array):
                 encodeInnerArrayAsListItem(array, output: &output, depth: depth + 1)
 
-            case .object(let values, let keyOrder):
+            case .object(let values):
                 encodeObjectAsListItem(
                     values: values,
-                    keyOrder: keyOrder,
                     output: &output,
                     depth: depth + 1
                 )
@@ -749,24 +744,25 @@ public final class TOONEncoder {
     /// An array that holds an empty object never takes the tabular form,
     /// because an empty object has no column to describe.
     private func detectTabularHeader(_ rows: [Value]) -> [FieldNode]? {
-        guard let (_, keyOrder) = rows.first?.objectValue, !keyOrder.isEmpty else {
+        guard let firstRow = rows.first?.objectValue, !firstRow.isEmpty else {
             return nil
         }
 
         // Every row is an object with the same set of keys. The order inside a
         // row may differ; the header order wins, per section 9.3.
+        let headerKeys = firstRow.keys
         for row in rows {
-            guard let (values, order) = row.objectValue, order.count == keyOrder.count else {
+            guard let values = row.objectValue, values.count == headerKeys.count else {
                 return nil
             }
-            for key in keyOrder where values[key] == nil {
+            for key in headerKeys where values[key] == nil {
                 return nil
             }
         }
 
         var fields: [FieldNode] = []
-        for key in keyOrder {
-            let column = rows.compactMap { $0.objectValue?.values[key] }
+        for key in headerKeys {
+            let column = rows.compactMap { $0.objectValue?[key] }
             if column.allSatisfy({ $0.isPrimitive }) {
                 fields.append(FieldNode(name: key))
             } else if let children = detectTabularHeader(column) {
@@ -785,14 +781,11 @@ public final class TOONEncoder {
     /// TOON specification 9.5 requires at least two entries, and every entry
     /// value to be a non-empty object. The columns then follow the rules of
     /// section 9.3, so the detection reuses ``detectTabularHeader``.
-    private func detectKeyedTabularHeader(
-        _ values: [String: Value],
-        keyOrder: [String]
-    ) -> [FieldNode]? {
-        guard keyOrder.count >= 2 else { return nil }
+    private func detectKeyedTabularHeader(_ values: ObjectStorage) -> [FieldNode]? {
+        guard values.count >= 2 else { return nil }
 
-        let entries = keyOrder.compactMap { values[$0] }
-        guard entries.count == keyOrder.count, entries.allSatisfy({ $0.isObject }) else {
+        let entries = values.values
+        guard entries.allSatisfy({ $0.isObject }) else {
             return nil
         }
 
@@ -802,8 +795,7 @@ public final class TOONEncoder {
     /// Writes a keyed tabular scope: the header, then one row per entry.
     private func encodeKeyedTabular(
         key: String?,
-        values: [String: Value],
-        keyOrder: [String],
+        values: ObjectStorage,
         header: [FieldNode],
         output: inout [String],
         depth: Int
@@ -813,21 +805,20 @@ public final class TOONEncoder {
             headerStr += encodeKey(key)
         }
         let delimiterSuffix = delimiter.rawValue != "," ? delimiter.rawValue : ""
-        headerStr += "[\(keyOrder.count):\(delimiterSuffix)]"
+        headerStr += "[\(values.count):\(delimiterSuffix)]"
         headerStr += "{\(formatFieldList(header, delimiter: delimiter.rawValue))}:"
         write(depth: depth, content: headerStr, to: &output)
 
-        for entryKey in keyOrder {
-            guard let entry = values[entryKey] else { continue }
-            let cells = collectRowLeaves(entry, fields: header)
+        for entry in values {
+            let cells = collectRowLeaves(entry.value, fields: header)
             let row = joinEncodedValues(cells, delimiter: delimiter.rawValue)
-            write(depth: depth + 1, content: "\(encodeKey(entryKey)): \(row)", to: &output)
+            write(depth: depth + 1, content: "\(encodeKey(entry.key)): \(row)", to: &output)
         }
     }
 
     /// The cells of one row, in the depth-first order of the leaves.
     private func collectRowLeaves(_ row: Value, fields: [FieldNode]) -> [Value] {
-        guard let (values, _) = row.objectValue else { return [] }
+        guard let values = row.objectValue else { return [] }
 
         var cells: [Value] = []
         for field in fields {
@@ -954,12 +945,11 @@ public final class TOONEncoder {
                 nextPath.append(ValidationCodingKey(intValue: index))
                 try validateNonConformingFloats(in: item, codingPath: nextPath)
             }
-        case .object(let values, let keyOrder):
-            for key in keyOrder {
-                guard let nestedValue = values[key] else { continue }
+        case .object(let values):
+            for element in values {
                 var nextPath = codingPath
-                nextPath.append(ValidationCodingKey(stringValue: key))
-                try validateNonConformingFloats(in: nestedValue, codingPath: nextPath)
+                nextPath.append(ValidationCodingKey(stringValue: element.key))
+                try validateNonConformingFloats(in: element.value, codingPath: nextPath)
             }
         case .null, .bool, .int, .string, .date, .url, .data:
             break
@@ -1126,9 +1116,7 @@ extension TOONEncoder {
         let encoder: Encoder
         let codingPath: [any Swift.CodingKey]
 
-        private var container: [String: Value] = [:]
-
-        private var keyOrder: [String] = []
+        private var container: ObjectStorage = [:]
 
         /// Heuristic: Swift's `Dictionary` encoding uses an internal
         /// `DictionaryCodingKey` type.
@@ -1148,94 +1136,68 @@ extension TOONEncoder {
         }()
         private var didFinishEncoding = false
 
-        private var finalKeyOrder: [String] {
-            isDictionaryCodingKey ? container.keys.sorted() : keyOrder
-        }
-
         init(encoder: Encoder, codingPath: [CodingKey]) {
             self.encoder = encoder
             self.codingPath = codingPath
         }
 
-        private func trackKey(_ key: String) {
-            guard !isDictionaryCodingKey else { return }
-            if !keyOrder.contains(key) {
-                keyOrder.append(key)
-            }
-        }
-
         func encodeNil(forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .null
         }
 
         func encode(_ value: Bool, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .bool(value)
         }
 
         func encode(_ value: String, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .string(value)
         }
 
         func encode(_ value: Double, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .double(value)
         }
 
         func encode(_ value: Float, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .double(Double(value))
         }
 
         func encode(_ value: Int, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .int(Int64(value))
         }
 
         func encode(_ value: Int8, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .int(Int64(value))
         }
 
         func encode(_ value: Int16, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .int(Int64(value))
         }
 
         func encode(_ value: Int32, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .int(Int64(value))
         }
 
         func encode(_ value: Int64, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .int(value)
         }
 
         func encode(_ value: UInt, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .int(Int64(value))
         }
 
         func encode(_ value: UInt8, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .int(Int64(value))
         }
 
         func encode(_ value: UInt16, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .int(Int64(value))
         }
 
         func encode(_ value: UInt32, forKey key: Key) throws {
-            trackKey(key.stringValue)
             container[key.stringValue] = .int(Int64(value))
         }
 
         func encode(_ value: UInt64, forKey key: Key) throws {
-            trackKey(key.stringValue)
             if value <= Int64.max {
                 container[key.stringValue] = .int(Int64(value))
             } else {
@@ -1253,7 +1215,6 @@ extension TOONEncoder {
                     )
                 )
             }
-            trackKey(key.stringValue)
 
             // Handle special types by checking the mirror of the value
             // We need to use the Mirror because Date, URL, and Data conform to Codable
@@ -1439,7 +1400,7 @@ extension TOONEncoder {
         func finishEncoding() {
             guard !didFinishEncoding else { return }
             didFinishEncoding = true
-            encoder.storage.append(.object(container, keyOrder: finalKeyOrder))
+            encoder.storage.append(.object(isDictionaryCodingKey ? container.sortedByKey() : container))
         }
 
         deinit {

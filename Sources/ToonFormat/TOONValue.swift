@@ -46,105 +46,43 @@ public struct TOONObject: Hashable, Sendable {
         }
     }
 
-    private var elements: [Element]
-    private var index: [ScalarKey: Int]
+    private var storage = ScalarOrderedDictionary<TOONValue>()
 
-    public init() {
-        elements = []
-        index = [:]
-    }
+    public init() {}
 
     /// Creates an object from a sequence of pairs.
     ///
     /// A later pair with the same key replaces the value of the earlier pair
     /// and keeps the position of the earlier pair.
     public init(_ pairs: some Sequence<(String, TOONValue)>) {
-        self.init()
         for (key, value) in pairs {
-            self[key] = value
+            storage[key] = value
         }
     }
 
     /// The keys, in insertion order.
-    public var keys: [String] { elements.map(\.key) }
+    public var keys: [String] { storage.keys }
 
     /// The values, in insertion order.
-    public var values: [TOONValue] { elements.map(\.value) }
+    public var values: [TOONValue] { storage.values }
 
     public subscript(key: String) -> TOONValue? {
-        get {
-            guard let position = index[ScalarKey(key)] else { return nil }
-            return elements[position].value
-        }
-        set {
-            let scalarKey = ScalarKey(key)
-            switch (index[scalarKey], newValue) {
-            case let (position?, value?):
-                elements[position].value = value
-            case let (nil, value?):
-                index[scalarKey] = elements.count
-                elements.append(Element(key: key, value: value))
-            case let (position?, nil):
-                elements.remove(at: position)
-                index.removeValue(forKey: scalarKey)
-                for offset in position ..< elements.count {
-                    index[ScalarKey(elements[offset].key)] = offset
-                }
-            case (nil, nil):
-                break
-            }
-        }
-    }
-
-    // Scalar-exact equality, per § 2 and § 16. The synthesized conformance
-    // would compare the keys by canonical equivalence.
-    public static func == (lhs: TOONObject, rhs: TOONObject) -> Bool {
-        guard lhs.elements.count == rhs.elements.count else { return false }
-        return zip(lhs.elements, rhs.elements).allSatisfy { left, right in
-            left.key.unicodeScalars.elementsEqual(right.key.unicodeScalars)
-                && left.value == right.value
-        }
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(elements.count)
-        for element in elements {
-            for scalar in element.key.unicodeScalars {
-                hasher.combine(scalar)
-            }
-            hasher.combine(element.value)
-        }
+        get { storage[key] }
+        set { storage[key] = newValue }
     }
 }
 
 extension TOONObject: RandomAccessCollection {
-    public var startIndex: Int { elements.startIndex }
-    public var endIndex: Int { elements.endIndex }
-    public subscript(position: Int) -> Element { elements[position] }
+    public var startIndex: Int { storage.startIndex }
+    public var endIndex: Int { storage.endIndex }
+    public subscript(position: Int) -> Element {
+        Element(key: storage[position].key, value: storage[position].value)
+    }
 }
 
 extension TOONObject: ExpressibleByDictionaryLiteral {
     public init(dictionaryLiteral pairs: (String, TOONValue)...) {
         self.init(pairs)
-    }
-}
-
-/// A dictionary key that compares and hashes by Unicode scalar sequence.
-private struct ScalarKey: Hashable {
-    let value: String
-
-    init(_ value: String) {
-        self.value = value
-    }
-
-    static func == (lhs: ScalarKey, rhs: ScalarKey) -> Bool {
-        lhs.value.unicodeScalars.elementsEqual(rhs.value.unicodeScalars)
-    }
-
-    func hash(into hasher: inout Hasher) {
-        for scalar in value.unicodeScalars {
-            hasher.combine(scalar)
-        }
     }
 }
 

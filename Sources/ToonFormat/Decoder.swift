@@ -334,7 +334,7 @@ private final class Parser {
 
         if nonEmptyLines.isEmpty {
             // Empty document = empty object
-            return .object([:], keyOrder: [])
+            return .object([:])
         }
 
         // Detect root form
@@ -506,28 +506,21 @@ private final class Parser {
     /// A repeated key is an error in strict mode. Otherwise the last write
     /// wins, and the key keeps the position of its first appearance.
     ///
-    /// Note a deviation that specification 2 permits when documented: the
-    /// comparison uses Swift String equality, which is canonical, so two keys
-    /// that differ only in normalization form count as one here. The public
-    /// ``TOONObject`` type compares by Unicode scalar sequence, as section 16
-    /// requires.
+    /// Two keys are the same key only when their Unicode scalar sequences are
+    /// equal, per section 2 and section 16. ``ObjectStorage`` gives that
+    /// identity, so two keys that differ only in normalization form stay
+    /// apart.
     private func storeKey(
         _ key: String,
         value: Value,
-        into values: inout [String: Value],
-        keyOrder: inout [String]
+        into values: inout ObjectStorage
     ) throws {
-        if values[key] != nil {
-            if strict {
-                throw TOONDecodingError.invalidFormat(
-                    "Duplicate key '\(key)' at line \(sourceLine(currentLine))"
-                )
-            }
-            values[key] = value
-            return
+        if values[key] != nil, strict {
+            throw TOONDecodingError.invalidFormat(
+                "Duplicate key '\(key)' at line \(sourceLine(currentLine))"
+            )
         }
 
-        keyOrder.append(key)
         values[key] = value
     }
 
@@ -539,8 +532,7 @@ private final class Parser {
             throw TOONDecodingError.depthLimitExceeded(depth: depth, limit: limits.maxDepth)
         }
 
-        var values: [String: Value] = [:]
-        var keyOrder: [String] = []
+        var values: ObjectStorage = [:]
 
         while let line = peekLine() {
             // Skip empty lines between object entries
@@ -572,29 +564,26 @@ private final class Parser {
             // Handle path expansion if enabled
             if (expandPaths == .safe || expandPaths == .automatic) && key.contains(".") && key.isValidDottedPath {
                 do {
-                    try expandDottedKey(key, value: value, into: &values, keyOrder: &keyOrder)
+                    try expandDottedKey(key, value: value, into: &values)
                 } catch {
                     // For .automatic mode, fall back to literal key on collision
                     if expandPaths == .automatic {
-                        if !keyOrder.contains(key) {
-                            keyOrder.append(key)
-                        }
                         values[key] = value
                     } else {
                         throw error
                     }
                 }
             } else {
-                try storeKey(key, value: value, into: &values, keyOrder: &keyOrder)
+                try storeKey(key, value: value, into: &values)
             }
 
             // Check object key limit
-            if keyOrder.count > limits.maxObjectKeys {
-                throw TOONDecodingError.objectKeyLimitExceeded(count: keyOrder.count, limit: limits.maxObjectKeys)
+            if values.count > limits.maxObjectKeys {
+                throw TOONDecodingError.objectKeyLimitExceeded(count: values.count, limit: limits.maxObjectKeys)
             }
         }
 
-        return .object(values, keyOrder: keyOrder)
+        return .object(values)
     }
 
     private func parseKeyValuePair(_ content: String, atDepth depth: Int) throws -> (String, Value) {
@@ -718,14 +707,14 @@ private final class Parser {
         skipEmptyLines()
 
         guard let line = peekLine() else {
-            return .object([:], keyOrder: [])
+            return .object([:])
         }
 
         let (lineDepth, content) = trimIndentation(line)
 
         if lineDepth < depth {
             // No nested content - empty object
-            return .object([:], keyOrder: [])
+            return .object([:])
         }
 
         if lineDepth != depth {
@@ -1142,15 +1131,14 @@ private final class Parser {
     /// remaining cell is absent from the object, and is not null, and that a
     /// surplus cell contributes nothing.
     private func materializeRow(fields: [FieldNode], cells: [Value], cursor: inout Int) -> Value {
-        var values: [String: Value] = [:]
-        var keyOrder: [String] = []
+        var values: ObjectStorage = [:]
 
         for field in fields {
             let value: Value
             if let children = field.children {
                 let before = cursor
                 let nested = materializeRow(fields: children, cells: cells, cursor: &cursor)
-                if cursor == before, case let .object(inner, _) = nested, inner.isEmpty {
+                if cursor == before, case let .object(inner) = nested, inner.isEmpty {
                     continue
                 }
                 value = nested
@@ -1162,12 +1150,10 @@ private final class Parser {
 
             // Specification 14.3 resolves a duplicate name by last write wins.
             // The name keeps the position of its first appearance.
-            if values.updateValue(value, forKey: field.name) == nil {
-                keyOrder.append(field.name)
-            }
+            values[field.name] = value
         }
 
-        return .object(values, keyOrder: keyOrder)
+        return .object(values)
     }
 
     private func parseArrayAtCurrentLine(depth: Int, key _: String?) throws -> Value {
@@ -1276,8 +1262,7 @@ private final class Parser {
             throw TOONDecodingError.invalidHeader("A keyed header requires a field list")
         }
 
-        var values: [String: Value] = [:]
-        var keyOrder: [String] = []
+        var values: ObjectStorage = [:]
         let expectedDepth = depth + 1
         let width = fields.leafCount
 
@@ -1285,7 +1270,7 @@ private final class Parser {
         // truncates a scope, so the loop reads to the end of the scope and
         // checks the length afterwards.
         while true {
-            try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !keyOrder.isEmpty)
+            try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !values.isEmpty)
 
             guard let line = peekLine(), !line.isEmpty else { break }
 
@@ -1323,18 +1308,18 @@ private final class Parser {
             var cursor = 0
             let entry = materializeRow(fields: fields, cells: cells, cursor: &cursor)
 
-            try storeKey(entryKey, value: entry, into: &values, keyOrder: &keyOrder)
+            try storeKey(entryKey, value: entry, into: &values)
         }
 
-        if strict, keyOrder.count != header.count {
+        if strict, values.count != header.count {
             throw TOONDecodingError.countMismatch(
                 expected: header.count,
-                actual: keyOrder.count,
+                actual: values.count,
                 line: sourceLine(currentLine)
             )
         }
 
-        return .object(values, keyOrder: keyOrder)
+        return .object(values)
     }
 
     /// The position of the first colon that sits outside a quoted span.
@@ -1471,7 +1456,7 @@ private final class Parser {
         // The bare marker of specification 9.4: a hyphen with nothing after it
         // is an empty object.
         if content.isEmpty {
-            return .object([:], keyOrder: [])
+            return .object([:])
         }
 
         // Specification 9.2 gives the literal token `[]` on a list-item line
@@ -1502,8 +1487,7 @@ private final class Parser {
             let afterColon = content.index(after: colonIndex)
             let valuePart = String(content[afterColon...]).trimmingLeadingSpace()
 
-            var objectValues: [String: Value] = [:]
-            var keyOrder: [String] = [key]
+            var objectValues: ObjectStorage = [:]
 
             if valuePart.isEmpty {
                 // A header on the hyphen line describes the first field of the
@@ -1513,7 +1497,6 @@ private final class Parser {
                     let header = try? parseArrayHeader(content),
                     let headerKey = header.key
                 {
-                    keyOrder = [headerKey]
                     objectValues[headerKey] = try parseArrayContent(
                         header: header,
                         atDepth: depth + 1
@@ -1531,9 +1514,6 @@ private final class Parser {
                     // Parse as array with the key
                     let array = try parseArrayContent(header: header, atDepth: depth)
                     let arrayKey = header.key ?? key
-                    if !keyOrder.contains(arrayKey) && arrayKey != key {
-                        keyOrder = [arrayKey]
-                    }
                     objectValues[arrayKey] = array
                 } else {
                     // Inline primitive value
@@ -1568,15 +1548,10 @@ private final class Parser {
                 _ = consumeLine()
 
                 let (nextKey, nextValue) = try parseKeyValuePair(String(nextContent), atDepth: depth + 1)
-                try storeKey(
-                    nextKey,
-                    value: nextValue,
-                    into: &objectValues,
-                    keyOrder: &keyOrder
-                )
+                try storeKey(nextKey, value: nextValue, into: &objectValues)
             }
 
-            return .object(objectValues, keyOrder: keyOrder)
+            return .object(objectValues)
         }
 
         // Single primitive value
@@ -1763,23 +1738,16 @@ private final class Parser {
     private func expandDottedKey(
         _ key: String,
         value: Value,
-        into values: inout [String: Value],
-        keyOrder: inout [String]
+        into values: inout ObjectStorage
     ) throws {
         let segments = key.split(separator: ".").map(String.init)
 
         guard segments.count > 1 else {
-            if !keyOrder.contains(key) {
-                keyOrder.append(key)
-            }
             values[key] = value
             return
         }
 
         let firstKey = segments[0]
-        if !keyOrder.contains(firstKey) {
-            keyOrder.append(firstKey)
-        }
 
         // Merge the value into the nested structure
         values[firstKey] = try mergeValueAtPath(
@@ -1801,18 +1769,15 @@ private final class Parser {
         let remainingSegments = Array(segments.dropFirst())
 
         // Get or create object at current level
-        var objectValues: [String: Value]
-        var objectKeyOrder: [String]
+        var objectValues: ObjectStorage
 
         if let existing = existing {
-            guard case let .object(vals, order) = existing else {
+            guard case let .object(vals) = existing else {
                 throw TOONDecodingError.pathCollision(path: segment, line: sourceLine(currentLine))
             }
             objectValues = vals
-            objectKeyOrder = order
         } else {
             objectValues = [:]
-            objectKeyOrder = []
         }
 
         // Recursively merge
@@ -1822,11 +1787,7 @@ private final class Parser {
             value: value
         )
 
-        if !objectKeyOrder.contains(segment) {
-            objectKeyOrder.append(segment)
-        }
-
-        return .object(objectValues, keyOrder: objectKeyOrder)
+        return .object(objectValues)
     }
 }
 
@@ -1847,12 +1808,11 @@ extension TOONDecoder {
 
         func container<Key>(keyedBy _: Key.Type) throws -> KeyedDecodingContainer<Key>
         where Key: CodingKey {
-            guard let (values, keyOrder) = value.objectValue else {
+            guard let values = value.objectValue else {
                 throw TOONDecodingError.typeMismatch(expected: "object", actual: value.typeName)
             }
             let container = KeyedContainer<Key>(
                 values: values,
-                keyOrder: keyOrder,
                 codingPath: codingPath,
                 userInfo: userInfo
             )
@@ -1876,23 +1836,20 @@ extension TOONDecoder {
 
 extension TOONDecoder {
     private final class KeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
-        let values: [String: Value]
-        let keyOrder: [String]
+        let values: ObjectStorage
         let codingPath: [CodingKey]
         let userInfo: [CodingUserInfoKey: Any]
 
         var allKeys: [Key] {
-            keyOrder.compactMap { Key(stringValue: $0) }
+            values.keys.compactMap { Key(stringValue: $0) }
         }
 
         init(
-            values: [String: Value],
-            keyOrder: [String],
+            values: ObjectStorage,
             codingPath: [CodingKey],
             userInfo: [CodingUserInfoKey: Any]
         ) {
             self.values = values
-            self.keyOrder = keyOrder
             self.codingPath = codingPath
             self.userInfo = userInfo
         }
@@ -2019,12 +1976,11 @@ extension TOONDecoder {
             -> KeyedDecodingContainer<NestedKey> where NestedKey: CodingKey
         {
             let value = try getValue(forKey: key)
-            guard let (values, keyOrder) = value.objectValue else {
+            guard let values = value.objectValue else {
                 throw TOONDecodingError.typeMismatch(expected: "object", actual: value.typeName)
             }
             let container = KeyedContainer<NestedKey>(
                 values: values,
-                keyOrder: keyOrder,
                 codingPath: codingPath + [key],
                 userInfo: userInfo
             )
@@ -2192,12 +2148,11 @@ extension TOONDecoder {
         func nestedContainer<NestedKey>(keyedBy _: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey>
         where NestedKey: CodingKey {
             let value = try getCurrentValue()
-            guard let (values, keyOrder) = value.objectValue else {
+            guard let values = value.objectValue else {
                 throw TOONDecodingError.typeMismatch(expected: "object", actual: value.typeName)
             }
             let container = KeyedContainer<NestedKey>(
                 values: values,
-                keyOrder: keyOrder,
                 codingPath: codingPath + [IndexedCodingKey(intValue: currentIndex - 1)],
                 userInfo: userInfo
             )

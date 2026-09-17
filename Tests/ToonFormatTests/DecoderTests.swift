@@ -1265,6 +1265,47 @@ struct DecoderTests {
         #expect(toonSpecVersion == "4.1")
     }
 
+    @Test func repeatedKeyKeepsThePositionOfItsFirstAppearance() async throws {
+        // Specification 14.3: outside strict mode the last write wins, and the
+        // key keeps the position of its first appearance.
+        let decoder = TOONDecoder()
+        decoder.strict = false
+        let toon = """
+            a: 1
+            b: 2
+            a: 3
+            """
+
+        let value = try decoder.decode(TOONValue.self, from: Data(toon.utf8))
+
+        guard case let .object(object) = value else {
+            Issue.record("Expected an object, got \(value)")
+            return
+        }
+        #expect(object.keys == ["a", "b"])
+        #expect(object["a"] == .int(3))
+    }
+
+    @Test func keysThatDifferOnlyInNormalizationFormStayApart() async throws {
+        // Specification 2 and 16 make two keys the same key only when their
+        // Unicode scalar sequences are equal. The two keys below are
+        // canonically equivalent, so a Swift dictionary merges them, and
+        // strict mode would then report a duplicate key.
+        let composed = "\u{00E9}"
+        let decomposed = "e\u{0301}"
+        let toon = "\(composed): one\n\(decomposed): two"
+
+        let value = try decoder.decode(TOONValue.self, from: Data(toon.utf8))
+
+        guard case let .object(object) = value else {
+            Issue.record("Expected an object, got \(value)")
+            return
+        }
+        #expect(object.count == 2)
+        #expect(object[composed] == .string("one"))
+        #expect(object[decomposed] == .string("two"))
+    }
+
     // MARK: - Error Cases
 
     @Test func invalidEscapeSequence() async throws {
