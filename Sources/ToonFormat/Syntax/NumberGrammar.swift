@@ -76,9 +76,14 @@ enum NumberGrammar {
 
     /// Converts a token that matches the grammar into a value.
     ///
-    /// An integer that does not fit `Int64` stays a string. The library
+    /// A number that the host type cannot hold stays a string. The library
     /// documents that policy, which § 4 allows, and it is what lets
     /// `UInt64` values above `Int64.max` survive a round trip.
+    ///
+    /// The rule covers both shapes. An integer that does not fit `Int64`
+    /// stays a string. A decimal whose exponent overflows `Double` stays a
+    /// string too: `Double(_:)` reports an overflow as an infinity rather
+    /// than as `nil`, and an infinity has no place in the data model of § 2.
     static func value(of token: String) -> Value? {
         switch form(of: token) {
         case .integer:
@@ -87,7 +92,9 @@ enum NumberGrammar {
             }
             return .string(token)
         case .decimal:
-            guard let number = Double(token) else { return .string(token) }
+            guard let number = Double(token), number.isFinite else {
+                return .string(token)
+            }
             return .double(number)
         case nil:
             return nil

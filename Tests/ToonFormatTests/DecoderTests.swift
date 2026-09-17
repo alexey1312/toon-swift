@@ -1306,6 +1306,32 @@ struct DecoderTests {
         #expect(object[decomposed] == .string("two"))
     }
 
+    /// A decimal whose exponent overflows `Double` stays a string.
+    ///
+    /// `Double("1e999")` gives an infinity, not `nil`. An infinity has no
+    /// place in the data model of section 2, and the encoder turns it into
+    /// `null`, so the value was lost on a round trip.
+    @Test func anExponentThatOverflowsDoubleStaysAString() async throws {
+        let value = try decoder.decode(TOONValue.self, from: Data("v: 1e999".utf8))
+
+        guard case let .object(object) = value else {
+            Issue.record("Expected an object, got \(value)")
+            return
+        }
+        #expect(object["v"] == .string("1e999"))
+
+        let negative = try decoder.decode(TOONValue.self, from: Data("v: -1e999".utf8))
+        if case let .object(object) = negative {
+            #expect(object["v"] == .string("-1e999"))
+        }
+
+        // A number that fits stays a number.
+        let large = try decoder.decode(TOONValue.self, from: Data("v: 1e308".utf8))
+        if case let .object(object) = large {
+            #expect(object["v"] == .double(1e308))
+        }
+    }
+
     // MARK: - Error Cases
 
     @Test func invalidEscapeSequence() async throws {
