@@ -9,9 +9,9 @@ import Testing
 /// `toon-format/spec` by `Scripts/update-fixtures.sh`.
 ///
 /// The `README.md` of the fixtures states that `name`, `description` and `note`
-/// are prose, not identifiers, and that a runner must key on the file path and
-/// the array index. This type therefore identifies a case by ``file`` and
-/// ``index``, and uses ``name`` only for the display string.
+/// are prose, not identifiers. A runner must key on the file path and the array
+/// index. This type therefore identifies a case by ``file`` and ``index``, and
+/// uses ``name`` only for the display string.
 struct FixtureCase: Sendable, CustomTestStringConvertible {
     /// The path inside the fixtures directory, such as `decode/numbers.json`.
     let file: String

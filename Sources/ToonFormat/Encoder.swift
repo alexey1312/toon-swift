@@ -271,8 +271,8 @@ public final class TOONEncoder {
 
     /// Rejects an indentation size that the encoder cannot use.
     ///
-    /// A size below one gives no indentation, so a nested value lands at the
-    /// depth of its parent and the output no longer holds the structure. A
+    /// A size below one gives no indentation. A nested value then lands at the
+    /// depth of its parent, and the output no longer holds the structure. A
     /// negative size traps in `String(repeating:count:)`. The encoder reports
     /// the mistake instead.
     private func validateIndentSize() throws {
@@ -686,8 +686,8 @@ public final class TOONEncoder {
     /// Writes an inner array that sits on a hyphen line.
     ///
     /// Specification 6 allows a keyless header to carry a field list only at
-    /// the document root, so a tabular-eligible inner array takes the list
-    /// form here rather than the tabular form.
+    /// the document root. An inner array that the tabular form would fit
+    /// therefore takes the list form here.
     private func encodeInnerArrayAsListItem(_ array: [Value], output: inout [String], depth: Int) {
         if array.allSatisfy({ $0.isPrimitive }) {
             let inline = formatInlineArray(values: array, key: nil, inListItem: true)
@@ -1706,24 +1706,24 @@ extension TOONEncoder {
 /// Renders a finite `Double` in the canonical decimal form of TOON
 /// specification 2.
 ///
-/// The description of a `Double` in Swift is the shortest text that reads
-/// back as the same value, which is what section 2 asks for: an encoder must
-/// emit enough precision that decoding its output returns the input. The
-/// earlier code used a NumberFormatter capped at 15 fraction digits, which
-/// rounded 0.3333333333333333 to fifteen threes and turned 1e-16 into 0.
+/// The description of a `Double` in Swift is the shortest text that reads back
+/// as the same value. Section 2 asks for exactly that: an encoder must emit
+/// enough precision that decoding its output returns the input. The earlier
+/// code used a NumberFormatter capped at 15 fraction digits. That cap rounded
+/// 0.3333333333333333 to fifteen threes, and turned 1e-16 into 0.
 ///
-/// Swift writes a whole value as "1.0" and uses an exponent outside a range
-/// of its own, so the two cases are adjusted here. Section 2 asks for a plain
-/// decimal while the magnitude is zero, or at least 1e-6 and below 1e21, and
-/// allows the exponent form outside that band.
+/// Swift writes a whole value as "1.0" and uses an exponent outside a range of
+/// its own, so the two cases are adjusted here. Section 2 asks for a plain
+/// decimal inside one band of magnitudes. The band holds zero, and every
+/// magnitude from 1e-6 up to 1e21. Outside it, the exponent form is allowed.
 private func canonicalDecimal(_ value: Double) -> String {
     let magnitude = abs(value)
     let usesPlainForm = magnitude == 0 || (magnitude >= 1e-6 && magnitude < 1e21)
 
     guard usesPlainForm else {
-        // Outside the band, section 2 allows the exponent form, and the
-        // description of a Double is already the shortest text that reads
-        // back as the same value.
+        // Outside the band, section 2 allows the exponent form. The description
+        // of a Double is already the shortest text that reads back as the same
+        // value.
         return String(value)
     }
 

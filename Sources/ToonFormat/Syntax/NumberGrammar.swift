@@ -80,10 +80,10 @@ enum NumberGrammar {
     /// documents that policy, which § 4 allows, and it is what lets
     /// `UInt64` values above `Int64.max` survive a round trip.
     ///
-    /// The rule covers both shapes. An integer that does not fit `Int64`
-    /// stays a string. A decimal whose exponent overflows `Double` stays a
-    /// string too: `Double(_:)` reports an overflow as an infinity rather
-    /// than as `nil`, and an infinity has no place in the data model of § 2.
+    /// The rule covers both shapes. An integer that does not fit `Int64` stays
+    /// a string. A decimal whose exponent overflows `Double` stays a string
+    /// too. `Double(_:)` reports an overflow as an infinity, not as `nil`, and
+    /// an infinity has no place in the data model of § 2.
     static func value(of token: String) -> Value? {
         switch form(of: token) {
         case .integer:

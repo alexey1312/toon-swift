@@ -7,8 +7,8 @@ import Testing
 ///
 /// ``TOONValue`` and ``TOONObject`` became public with specification 4.1, so
 /// their behaviour is part of the released interface. The conformance suite
-/// exercises them, but it compares one object against another through the
-/// same subscript, so a fault in the identity of a key stays invisible there.
+/// exercises them. It compares one object against another through the same
+/// subscript, so a fault in the identity of a key stays invisible there.
 @Suite("TOON value model")
 struct TOONValueTests {
 

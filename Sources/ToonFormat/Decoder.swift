@@ -66,10 +66,10 @@ public final class TOONDecoder {
     ///
     /// TOON specification 13 defines this option, with a default of `true`.
     ///
-    /// In strict mode a document must satisfy every rule of section 14: the
-    /// declared counts must match, a field name must not repeat, and the
-    /// indentation must be exact. In non-strict mode a decoder resolves what
-    /// it can, for example a repeated key by last write wins (section 14.3).
+    /// In strict mode a document must satisfy every rule of section 14. The
+    /// declared counts must match. A field name must not repeat. The
+    /// indentation must be exact. In non-strict mode a decoder resolves what it
+    /// can, for example a repeated key by last write wins (section 14.3).
     ///
     /// Set this property to `false` to accept a document that an earlier
     /// release accepted but section 14 rejects.
@@ -438,13 +438,13 @@ private final class Parser {
 
     /// Splits a line into its depth and its content.
     ///
-    /// The depth uses the floor of the division, which is the leniency that
-    /// TOON specification 12 allows for an indentation that is not a multiple
-    /// of the indent size. Strict mode rejects such a line in the pre-pass.
+    /// The depth uses the floor of the division. TOON specification 12 allows
+    /// that leniency for an indentation that is not a multiple of the indent
+    /// size. Strict mode rejects such a line in the pre-pass.
     ///
     /// Specification 12 also allows a decoder to accept a tab in the
-    /// indentation outside strict mode, and requires the depth rule for a tab
-    /// to be documented: this decoder counts one tab as one level. Strict mode
+    /// indentation outside strict mode. It requires the depth rule for a tab to
+    /// be documented. This decoder counts one tab as one level. Strict mode
     /// rejects a tab in the pre-pass, so a tab reaches this point only in
     /// non-strict mode.
     private func trimIndentation(_ line: String) -> (depth: Int, content: Substring) {
@@ -481,12 +481,12 @@ private final class Parser {
 
     /// Skips the blank lines, and rejects one that sits inside a scope.
     ///
-    /// Specification 12 forbids a blank line inside the span of a header.
-    /// The span runs from the first row, entry or item of the scope through
-    /// the last line of its content, so a blank line before the first one and
-    /// a blank line after the last one are both ignorable. A blank line is
-    /// interior when the scope has already produced an element and the next
-    /// line still belongs to the scope.
+    /// Specification 12 forbids a blank line inside the span of a header. The
+    /// span runs from the first row, entry or item of the scope. It ends at the
+    /// last line of the content of that scope. A blank line before the first
+    /// one is therefore ignorable, and so is a blank line after the last one. A
+    /// blank line is interior when the scope has already produced an element
+    /// and the next line still belongs to the scope.
     private func skipBlankLines(insideScopeAtDepth depth: Int, hasElement: Bool) throws {
         guard currentLine < lines.count, lines[currentLine].isEmpty else { return }
 
@@ -777,10 +777,10 @@ private final class Parser {
 
     /// The position of the colon that ends an array header.
     ///
-    /// The search skips a quoted span, the bracket segment and the field
-    /// list, because each may hold a colon of its own: the keyed marker of
+    /// The search skips a quoted span, the bracket segment and the field list.
+    /// Each of the three may hold a colon of its own. The keyed marker of
     /// specification 9.5 sits inside the brackets, and a quoted field name may
-    /// carry anything.
+    /// carry any character.
     private func headerColonIndex(in text: Substring) -> Substring.Index? {
         var inQuotes = false
         var escaped = false
@@ -1181,9 +1181,9 @@ private final class Parser {
     /// Builds one row object by walking the field tree against the cells.
     ///
     /// Specification 9.3 maps the cells to the leaves in depth-first order.
-    /// Specification 14.1 states for non-strict mode that a leaf with no
-    /// remaining cell is absent from the object, and is not null, and that a
-    /// surplus cell contributes nothing.
+    /// Specification 14.1 gives two rules for non-strict mode. A leaf with no
+    /// remaining cell is absent from the object, and is not null. A surplus
+    /// cell contributes nothing.
     private func materializeRow(fields: [FieldNode], cells: [Value], cursor: inout Int) -> Value {
         var values: ObjectStorage = [:]
 
@@ -1321,8 +1321,8 @@ private final class Parser {
         let width = fields.leafCount
 
         // Specification 14.1 states that a declared length never terminates or
-        // truncates a scope, so the loop reads to the end of the scope and
-        // checks the length afterwards.
+        // truncates a scope. The loop therefore reads to the end of the scope,
+        // then checks the length.
         while true {
             try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !values.isEmpty)
 
@@ -1470,8 +1470,8 @@ private final class Parser {
         let expectedDepth = depth + 1
 
         // Specification 14.1 states that a declared length never terminates or
-        // truncates a scope, so the loop reads to the end of the scope and
-        // checks the length afterwards.
+        // truncates a scope. The loop therefore reads to the end of the scope,
+        // then checks the length.
         while true {
             try skipBlankLines(insideScopeAtDepth: expectedDepth, hasElement: !items.isEmpty)
 
@@ -1685,8 +1685,9 @@ private final class Parser {
         }
 
         // Quoted string. Specification 7.4 states that a token which begins
-        // with a quote must end at its closing quote, in both modes, so a
-        // missing quote and any character after the closing one are errors.
+        // with a quote must end at its closing quote. The rule holds in both
+        // modes. A missing quote is an error, and so is any character after the
+        // closing one.
         if trimmed.hasPrefix("\"") {
             guard let closing = findClosingQuote(in: trimmed[...]) else {
                 throw TOONDecodingError.invalidFormat(
@@ -1729,9 +1730,9 @@ private final class Parser {
     /// Unescapes a quoted span, per TOON specification 7.1.
     ///
     /// The table has five short forms plus `\uXXXX`, whose hexadecimal digits
-    /// are case-insensitive. A surrogate escape is rejected: section 7.1 says
-    /// that a lone surrogate MUST error, and that a supplementary scalar MUST
-    /// arrive as literal UTF-8 rather than as a surrogate pair. Any other
+    /// are case-insensitive. A surrogate escape is rejected. Section 7.1 says
+    /// that a lone surrogate MUST error. It also says that a supplementary
+    /// scalar MUST arrive as literal UTF-8, not as a surrogate pair. Any other
     /// escape, and a trailing backslash, are errors.
     private func unescapeString(_ str: String) throws -> String {
         var result = String.UnicodeScalarView()
@@ -2536,9 +2537,9 @@ private extension Substring {
 extension StringProtocol {
     /// Removes the leading and trailing U+0020, and nothing else.
     ///
-    /// TOON specification 12 states that token trimming takes exactly U+0020:
-    /// any other whitespace, such as a no-break space or a tab outside its
-    /// delimiter role, is part of the token. CharacterSet.whitespaces covers
+    /// TOON specification 12 states that token trimming takes exactly U+0020.
+    /// Any other whitespace is part of the token, among them a no-break space
+    /// and a tab outside its delimiter role. CharacterSet.whitespaces covers
     /// every Unicode space separator, so it trims too much.
     fileprivate func trimmingSpaces() -> String {
         var scalars = Substring.UnicodeScalarView(unicodeScalars)

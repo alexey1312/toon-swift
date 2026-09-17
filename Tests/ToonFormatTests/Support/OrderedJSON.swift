@@ -6,13 +6,13 @@ import Foundation
 ///
 /// `JSONSerialization` returns an `NSDictionary`, and the order of
 /// `KeyedDecodingContainer.allKeys` is undefined for `JSONDecoder`. Neither one
-/// can report the order of the keys, and the conformance fixtures need it: on
-/// encode the order of the keys of the input sets the order of the output
+/// can report the order of the keys. The conformance fixtures need that order:
+/// on encode, the order of the keys of the input sets the order of the output
 /// lines (TOON specification § 2).
 ///
 /// The reader unescapes strings on its own, and does not call into
-/// ``ToonFormat``. A shared escape routine would make a fault in the library
-/// and a fault in the test agree with each other, and the test would pass.
+/// ``ToonFormat``. A shared escape routine would let a fault in the library and
+/// a fault in the test agree. The test would then pass.
 enum OrderedJSON {
     struct ParseError: Error, CustomStringConvertible {
         let message: String
@@ -206,8 +206,8 @@ enum OrderedJSON {
         }
 
         /// Reads `\uXXXX`, and joins a surrogate pair. JSON allows a surrogate
-        /// pair here; the TOON format does not, which is why this routine is
-        /// deliberately separate from the escape code of the library.
+        /// pair here, and the TOON format does not. That is why this routine
+        /// stays separate from the escape code of the library.
         private mutating func parseUnicodeEscape() throws -> Unicode.Scalar {
             let first = try parseHexQuad()
             if first >= 0xD800, first <= 0xDBFF {

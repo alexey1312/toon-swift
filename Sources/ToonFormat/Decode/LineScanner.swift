@@ -32,13 +32,13 @@ enum LineScanner {
     ///    input. A carriage return anywhere else in a line is content.
     /// 3. Strip the trailing spaces (U+0020) of a line. A line whose content
     ///    is `-` followed only by spaces is therefore the bare marker of an
-    ///    empty-object list item, not a list item that carries an empty token.
+    ///    empty-object list item. It is not a list item with an empty token.
     /// 4. Remove the comment lines (§ 5.1). A comment line is a line whose
     ///    first character after zero or more leading spaces is `#`. Only
     ///    spaces may precede the `#`, so a line indented with a tab is
-    ///    content. Removal never creates or terminates a scope: a comment
-    ///    between two tabular rows does not end them, and a comment is never
-    ///    counted as a row, an entry, a list item or a blank line.
+    ///    content. Removal never creates or terminates a scope. A comment
+    ///    between two tabular rows does not end them. A comment never counts
+    ///    as a row, an entry, a list item or a blank line.
     /// - Parameters:
     ///   - indentSize: The number of spaces of one level, for the strict
     ///     indentation checks of section 12.

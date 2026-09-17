@@ -7,10 +7,10 @@ import Testing
 ///
 /// Run the suite with `swift test --filter FixtureTests`, or one side of it
 /// with `swift test --filter encodeFixture` or `--filter decodeFixture`. The
-/// `--filter` option matches the name of a suite or of a test function, not
-/// the name of a case, so it cannot select one fixture. To follow one case,
-/// run the suite and read the identifier that a failure prints, for example
-/// `decode/numbers.json#5`.
+/// `--filter` option matches the name of a suite or of a test function. It does
+/// not match the name of a case, so it cannot select one fixture. To follow one
+/// case, run the suite and read the identifier that a failure prints, for
+/// example `decode/numbers.json#5`.
 ///
 /// A case that the library does not satisfy yet is listed in
 /// ``FixtureExpectations/knownGaps``. The suite wraps such a case in
@@ -78,9 +78,9 @@ struct FixtureTests {
 
     /// The case count of every fixture file.
     ///
-    /// A total on its own does not guard the corpus: a case that moves from
-    /// one file to another keeps the total, and a whole group can shrink
-    /// while another grows. The counts are per file for that reason.
+    /// A total on its own does not guard the corpus. A case that moves from one
+    /// file to another keeps the total. A whole group can shrink while another
+    /// group grows. The counts are per file for that reason.
     private static let expectedCounts: [String: Int] = [
         "decode/arrays-nested.json": 25,
         "decode/arrays-primitive.json": 19,

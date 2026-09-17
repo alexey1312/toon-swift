@@ -18,8 +18,8 @@ struct ScalarKey: Hashable {
 }
 
 /// An ordered map with the key identity that TOON specification section 2 and
-/// section 16 require: two keys are the same key only when their Unicode
-/// scalar sequences are equal.
+/// section 16 require. Two keys are the same key only when their Unicode scalar
+/// sequences are equal.
 ///
 /// The Swift `String` type compares by canonical equivalence, so a plain
 /// `[String: Value]` merges two keys that differ only in normalization form.

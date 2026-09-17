@@ -1245,10 +1245,10 @@ struct DecoderTests {
             let outer: Inner
         }
 
-        // Specification 14.2 makes an indentation that is not a multiple of
-        // the indent size an error in strict mode. Section 12 allows a decoder
-        // to accept it otherwise, and computes the depth with the floor of the
-        // division, so three spaces at an indent size of two is depth one.
+        // Specification 14.2 makes an indentation that is not a multiple of the
+        // indent size an error in strict mode. Section 12 allows a decoder to
+        // accept it otherwise. The depth is then the floor of the division, so
+        // three spaces at an indent size of two give depth one.
         let toon = """
             outer:
                value: test
@@ -1308,9 +1308,9 @@ struct DecoderTests {
 
     /// A decimal whose exponent overflows `Double` stays a string.
     ///
-    /// `Double("1e999")` gives an infinity, not `nil`. An infinity has no
-    /// place in the data model of section 2, and the encoder turns it into
-    /// `null`, so the value was lost on a round trip.
+    /// `Double("1e999")` gives an infinity, not `nil`. An infinity has no place
+    /// in the data model of section 2. The encoder turns it into `null`, so the
+    /// value was lost on a round trip.
     @Test func anExponentThatOverflowsDoubleStaysAString() async throws {
         let value = try decoder.decode(TOONValue.self, from: Data("v: 1e999".utf8))
 
@@ -1440,7 +1440,7 @@ struct DecoderTests {
     ///
     /// Section 16 gives a field name the same identity rule as a key. The
     /// duplicate check used a `Set<String>`, and Swift compares a `String` by
-    /// canonical equivalence, so a header that carries both forms was
+    /// canonical equivalence. A header that carries both forms was therefore
     /// rejected as a duplicate.
     @Test func fieldNamesThatDifferOnlyInNormalizationFormStayApart() async throws {
         let composed = "\u{00E9}"

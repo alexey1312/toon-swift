@@ -7,8 +7,8 @@ import Testing
 ///
 /// The expected text is the output of `@toon-format/cli` 4.1.1 for the same
 /// document, byte for byte. The conformance fixtures cover each rule on its
-/// own; this case covers several of the specification 4.1 forms together in
-/// one document, which is how a real document mixes them.
+/// own. This case covers several of the specification 4.1 forms together in one
+/// document, the way a real document mixes them.
 @Suite("Cross-check with the reference implementation")
 struct CrossCheckTests {
     private static let json = """
