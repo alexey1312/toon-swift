@@ -1952,6 +1952,23 @@ struct DecoderTests {
         }
     }
 
+    @Test func depthLimitExceededByNestedFieldGroups() async throws {
+        let decoder = TOONDecoder()
+        let depth = decoder.limits.maxDepth + 1
+        let toon = "a[1]{" + String(repeating: "x{", count: depth) + "y"
+            + String(repeating: "}", count: depth) + "}:\n  1"
+        let data = Data(toon.utf8)
+
+        #expect(throws: TOONDecodingError.self) {
+            try decoder.decode(TOONValue.self, from: data)
+        }
+
+        decoder.limits = .unlimited
+        #expect(throws: Never.self) {
+            try decoder.decode(TOONValue.self, from: Data("a[1]{x{y}}:\n  1".utf8))
+        }
+    }
+
     @Test func objectKeyLimitExceeded() async throws {
         let decoder = TOONDecoder()
         decoder.limits = TOONDecoder.DecodingLimits(

@@ -1060,7 +1060,20 @@ private final class Parser {
     /// Specification 9.3 gives a field the shape `name` or `name{sub,sub}`.
     /// The separator inside a group is the active delimiter, the same as
     /// outside it. A brace or a delimiter inside a quoted name is content.
-    private func parseFieldsList(_ fieldsStr: String, delimiter: String) throws -> [FieldNode] {
+    ///
+    /// A group nests without a cap in the specification, so `depth` counts the
+    /// levels against ``TOONDecoder/DecodingLimits/maxDepth``. The recursion
+    /// runs on the stack, and an input of 10,000 levels stops the process
+    /// without the check.
+    private func parseFieldsList(
+        _ fieldsStr: String,
+        delimiter: String,
+        depth: Int = 0
+    ) throws -> [FieldNode] {
+        if depth > limits.maxDepth {
+            throw TOONDecodingError.depthLimitExceeded(depth: depth, limit: limits.maxDepth)
+        }
+
         var fields: [FieldNode] = []
         var current = ""
         var inQuotes = false
@@ -1099,7 +1112,7 @@ private final class Parser {
                 }
 
                 if braceDepth == 0, String(char) == delimiter {
-                    try fields.append(parseField(current, delimiter: delimiter))
+                    try fields.append(parseField(current, delimiter: delimiter, depth: depth))
                     current = ""
                     continue
                 }
@@ -1115,14 +1128,14 @@ private final class Parser {
         }
 
         if !current.isEmpty {
-            try fields.append(parseField(current, delimiter: delimiter))
+            try fields.append(parseField(current, delimiter: delimiter, depth: depth))
         }
 
         return fields
     }
 
     /// Reads one entry of a field list, which may carry a nested group.
-    private func parseField(_ field: String, delimiter: String) throws -> FieldNode {
+    private func parseField(_ field: String, delimiter: String, depth: Int) throws -> FieldNode {
         let trimmed = field.trimmingSpaces()
 
         guard let braceIndex = indexOfGroupBrace(in: trimmed) else {
@@ -1137,7 +1150,7 @@ private final class Parser {
         let innerStart = trimmed.index(after: braceIndex)
         let inner = String(trimmed[innerStart ..< trimmed.index(before: trimmed.endIndex)])
 
-        let children = try parseFieldsList(inner, delimiter: delimiter)
+        let children = try parseFieldsList(inner, delimiter: delimiter, depth: depth + 1)
         guard !children.isEmpty else {
             throw TOONDecodingError.invalidHeader("Empty field group in: \(field)")
         }
