@@ -1955,9 +1955,9 @@ struct DecoderTests {
     @Test func depthLimitExceededByNestedFieldGroups() async throws {
         let decoder = TOONDecoder()
         let depth = decoder.limits.maxDepth + 1
-        let toon = "a[1]{" + String(repeating: "x{", count: depth) + "y"
-            + String(repeating: "}", count: depth) + "}:\n  1"
-        let data = Data(toon.utf8)
+        let groups = String(repeating: "x{", count: depth)
+        let braces = String(repeating: "}", count: depth)
+        let data = Data("a[1]{\(groups)y\(braces)}:\n  1".utf8)
 
         #expect(throws: TOONDecodingError.self) {
             try decoder.decode(TOONValue.self, from: data)
